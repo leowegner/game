@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Typing Game - Aprende a Escribir</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎮 Typing Game</h1>
+            <p class="subtitle">Mejora tu velocidad de escritura</p>
+        </header>
+
+        <div class="game-area">
+            <div class="stats">
+                <div class="stat-item">
+                    <span class="stat-label">Nivel:</span>
+                    <span class="stat-value" id="level">Fácil</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Puntos:</span>
+                    <span class="stat-value" id="score">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Tiempo:</span>
+                    <span class="stat-value" id="timer">60</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">PPM:</span>
+                    <span class="stat-value" id="wpm">0</span>
+                </div>
+            </div>
+
+            <div class="word-display">
+                <p id="target-word">Pulsa INICIAR para empezar</p>
+            </div>
+
+            <div class="input-area">
+                <input 
+                    type="text" 
+                    id="user-input" 
+                    placeholder="Escribe aquí..." 
+                    disabled
+                    autocomplete="off"
+                    spellcheck="false"
+                >
+            </div>
+
+            <div class="controls">
+                <button id="start-btn" class="btn btn-primary">Iniciar</button>
+                <button id="reset-btn" class="btn btn-secondary">Reiniciar</button>
+                <select id="mode" class="mode-select">
+                    <option value="words">Palabras</option>
+                    <option value="letters">Letras</option>
+                </select>
+                <select id="difficulty" class="difficulty-select">
+                    <option value="easy">Fácil</option>
+                    <option value="medium">Medio</option>
+                    <option value="hard">Difícil</option>
+                </select>
+            </div>
+
+            <div class="feedback" id="feedback"></div>
+        </div>
+
+        <div class="instructions">
+            <h3>Cómo jugar:</h3>
+            <ul>
+                <li>Selecciona un modo (Palabras o Letras)</li>
+                <li>Selecciona un nivel de dificultad</li>
+                <li>Pulsa "Iniciar" para comenzar</li>
+                <li><strong>Modo Palabras:</strong> Escribe las palabras completas</li>
+                <li><strong>Modo Letras:</strong> Pulsa la letra que aparece en pantalla</li>
+                <li>Gana puntos por cada respuesta correcta</li>
+                <li>Tienes 60 segundos para conseguir la máxima puntuación</li>
+            </ul>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
