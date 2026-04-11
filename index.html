@@ -1,84 +1,108 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Typing Game - Aprende a Escribir</title>
-    <link rel="stylesheet" href="styles.css">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mega Thonk</title>
+<link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>🎮 Typing Game</h1>
-            <p class="subtitle">Mejora tu velocidad de escritura</p>
-        </header>
+  <div id="game-root">
+    <canvas id="game" width="1280" height="720"></canvas>
 
-        <div class="game-area">
-            <div class="stats">
-                <div class="stat-item">
-                    <span class="stat-label">Nivel:</span>
-                    <span class="stat-value" id="level">Fácil</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-label">Puntos:</span>
-                    <span class="stat-value" id="score">0</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-label">Tiempo:</span>
-                    <span class="stat-value" id="timer">60</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-label">PPM:</span>
-                    <span class="stat-value" id="wpm">0</span>
-                </div>
-            </div>
-
-            <div class="word-display">
-                <p id="target-word">Pulsa INICIAR para empezar</p>
-            </div>
-
-            <div class="input-area">
-                <input 
-                    type="text" 
-                    id="user-input" 
-                    placeholder="Escribe aquí..." 
-                    disabled
-                    autocomplete="off"
-                    spellcheck="false"
-                >
-            </div>
-
-            <div class="controls">
-                <button id="start-btn" class="btn btn-primary">Iniciar</button>
-                <button id="reset-btn" class="btn btn-secondary">Reiniciar</button>
-                <select id="mode" class="mode-select">
-                    <option value="words">Palabras</option>
-                    <option value="letters">Letras</option>
-                </select>
-                <select id="difficulty" class="difficulty-select">
-                    <option value="easy">Fácil</option>
-                    <option value="medium">Medio</option>
-                    <option value="hard">Difícil</option>
-                </select>
-            </div>
-
-            <div class="feedback" id="feedback"></div>
-        </div>
-
-        <div class="instructions">
-            <h3>Cómo jugar:</h3>
-            <ul>
-                <li>Selecciona un modo (Palabras o Letras)</li>
-                <li>Selecciona un nivel de dificultad</li>
-                <li>Pulsa "Iniciar" para comenzar</li>
-                <li><strong>Modo Palabras:</strong> Escribe las palabras completas</li>
-                <li><strong>Modo Letras:</strong> Pulsa la letra que aparece en pantalla</li>
-                <li>Gana puntos por cada respuesta correcta</li>
-                <li>Tienes 60 segundos para conseguir la máxima puntuación</li>
-            </ul>
-        </div>
+    <!-- ===== HUD (visible during a run) ===== -->
+    <div id="hud" class="hud hidden">
+      <div class="hud-row">
+        <div class="hud-label">HP</div>
+        <div class="bar"><div id="hp-fill" class="bar-fill hp"></div></div>
+        <div id="hp-text" class="hud-text">100 / 100</div>
+      </div>
+      <div class="hud-row">
+        <div class="hud-label">XP</div>
+        <div class="bar"><div id="xp-fill" class="bar-fill xp"></div></div>
+        <div id="xp-text" class="hud-text">LV 1</div>
+      </div>
+      <div class="hud-stats">
+        <span id="timer">00:00</span>
+        <span id="kills">Kills: 0</span>
+        <span id="gold">Gold: 0</span>
+      </div>
     </div>
 
-    <script src="script.js"></script>
+    <!-- ===== Level-up upgrade draft ===== -->
+    <div id="upgrade-screen" class="overlay hidden">
+      <div class="overlay-panel">
+        <h1 class="overlay-title">LEVEL UP!</h1>
+        <p class="overlay-sub">Choose an upgrade</p>
+        <div id="upgrade-cards" class="upgrade-cards"></div>
+        <div class="overlay-hint">Click a card or press 1 / 2 / 3</div>
+      </div>
+    </div>
+
+    <!-- ===== HOMEPAGE ===== -->
+    <div id="home-screen" class="overlay home-screen">
+      <div class="home-left">
+        <h1 class="game-title">MEGA<br>THONK</h1>
+        <p class="game-tagline">Survive. Thonk. Repeat.</p>
+        <div class="home-gold-display">
+          <span class="gold-coin">◈</span>
+          <span id="home-gold">0</span>
+          <span class="gold-label">GOLD</span>
+        </div>
+        <div class="home-buttons">
+          <button id="start-btn" class="big-btn" disabled>Loading...</button>
+          <button id="shop-btn" class="big-btn btn-shop">SHOP</button>
+        </div>
+        <div id="loading-msg" class="loading">Loading sprites...</div>
+        <div class="controls-mini">
+          <span><b>WASD</b> Move</span>
+          <span><b>Auto</b> Attack</span>
+          <span><b>P</b> Pause</span>
+        </div>
+        <div id="meta-bonuses" class="meta-bonuses"></div>
+      </div>
+      <div class="home-right">
+        <canvas id="preview-canvas" width="320" height="400"></canvas>
+      </div>
+    </div>
+
+    <!-- ===== SHOP ===== -->
+    <div id="shop-screen" class="overlay hidden">
+      <div class="shop-panel">
+        <div class="shop-header">
+          <h1 class="overlay-title">SHOP</h1>
+          <div class="shop-gold">
+            <span class="gold-coin">◈</span>
+            <span id="shop-gold-display">0</span>
+          </div>
+          <button id="shop-close-btn" class="close-btn">✕ BACK</button>
+        </div>
+        <p class="overlay-sub">Permanent upgrades — persist across all runs</p>
+        <div id="shop-items" class="shop-items"></div>
+      </div>
+    </div>
+
+    <!-- ===== END SCREEN ===== -->
+    <div id="end-screen" class="overlay hidden">
+      <div class="overlay-panel">
+        <h1 id="end-title" class="overlay-title">YOU DIED</h1>
+        <div id="end-stats" class="end-stats"></div>
+        <div class="end-buttons">
+          <button id="restart-btn" class="big-btn">RUN AGAIN</button>
+          <button id="home-btn" class="big-btn btn-shop">HOME</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== PAUSE ===== -->
+    <div id="pause-screen" class="overlay hidden">
+      <div class="overlay-panel">
+        <h1 class="overlay-title">PAUSED</h1>
+        <p class="overlay-sub">Press P to resume</p>
+        <button id="pause-home-btn" class="big-btn btn-shop" style="margin-top:18px">HOME</button>
+      </div>
+    </div>
+  </div>
+  <script src="script.js"></script>
 </body>
 </html>
