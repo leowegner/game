@@ -546,3 +546,32 @@ html, body {
   font-weight: bold;
   letter-spacing: 1px;
 }
+
+.shop-tier-header {
+  grid-column: 1 / -1;
+  color: #ffd86b;
+  font-size: 13px;
+  font-weight: bold;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  padding: 10px 4px 4px;
+  border-bottom: 1px solid #3a1f60;
+  margin-bottom: 4px;
+}
+
+.shop-tier-header.locked {
+  color: #6a5a80;
+  border-bottom-color: #2a1a40;
+}
+
+.shop-item.tier-locked {
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.home-run-number {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #7ad0ff;
+  letter-spacing: 1px;
+}

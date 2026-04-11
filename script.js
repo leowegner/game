@@ -100,7 +100,8 @@ async function loadAllSprites(onProgress) {
 
 const META_DEFAULT = {
   gold: 0,
-  shop: {},   // { upgradeId: levelsBought }
+  shop: {},        // { upgradeId: levelsBought }
+  runNumber: 0,    // how many runs the player has completed (victories)
 };
 
 const meta = loadMeta();
@@ -118,16 +119,19 @@ function saveMeta() {
 }
 
 // Shop upgrade definitions.
-// Each: { id, name, desc, icon, maxLevel, costBase, costGrowth, apply(player, level) }
+// Each: { id, name, desc, icon, tier, maxLevel, costBase, costGrowth, apply(player, level) }
+// tier 1 = always available; tier 2 = unlocked after run 1; tier 3 = unlocked after run 2.
 // apply is called once at run start for every level purchased.
 const SHOP_UPGRADES = [
+  // ---- Tier 1 ----
   {
     id: "start_hp",
     name: "Iron Constitution",
     desc: "+25 starting Max HP per level",
     icon: "ui_heart",
+    tier: 1,
     maxLevel: 8,
-    costBase: 15, costGrowth: 12,
+    costBase: 75, costGrowth: 60,
     apply(p, lv) { p.maxHp += lv * 25; p.hp = p.maxHp; },
   },
   {
@@ -135,8 +139,9 @@ const SHOP_UPGRADES = [
     name: "Fleet Feet",
     desc: "+8% move speed per level",
     icon: "ui_badge",
+    tier: 1,
     maxLevel: 6,
-    costBase: 20, costGrowth: 15,
+    costBase: 100, costGrowth: 75,
     apply(p, lv) { p.speed *= Math.pow(1.08, lv); },
   },
   {
@@ -144,8 +149,9 @@ const SHOP_UPGRADES = [
     name: "Brute Force",
     desc: "+12% damage per level",
     icon: "fx_hammer",
+    tier: 1,
     maxLevel: 8,
-    costBase: 25, costGrowth: 18,
+    costBase: 125, costGrowth: 90,
     apply(p, lv) { p.damageMult *= Math.pow(1.12, lv); },
   },
   {
@@ -153,8 +159,9 @@ const SHOP_UPGRADES = [
     name: "Life Tap",
     desc: "+0.4 HP/sec regen per level",
     icon: "pickup_heart",
+    tier: 1,
     maxLevel: 6,
-    costBase: 18, costGrowth: 14,
+    costBase: 90, costGrowth: 70,
     apply(p, lv) { p.regen += lv * 0.4; },
   },
   {
@@ -162,8 +169,9 @@ const SHOP_UPGRADES = [
     name: "Magnetism",
     desc: "+30% pickup radius per level",
     icon: "pickup_gem_small",
+    tier: 1,
     maxLevel: 5,
-    costBase: 15, costGrowth: 10,
+    costBase: 75, costGrowth: 50,
     apply(p, lv) { p.pickupRadius *= Math.pow(1.30, lv); },
   },
   {
@@ -171,8 +179,9 @@ const SHOP_UPGRADES = [
     name: "Plate Skin",
     desc: "+2 flat armor per level",
     icon: "ui_frame",
+    tier: 1,
     maxLevel: 6,
-    costBase: 20, costGrowth: 16,
+    costBase: 100, costGrowth: 80,
     apply(p, lv) { p.armor += lv * 2; },
   },
   {
@@ -180,8 +189,9 @@ const SHOP_UPGRADES = [
     name: "Gold Digger",
     desc: "+1 bonus gold per kill per level",
     icon: "ui_badge",
+    tier: 1,
     maxLevel: 5,
-    costBase: 30, costGrowth: 25,
+    costBase: 150, costGrowth: 125,
     apply(p, lv) { p._goldBonus = (p._goldBonus || 0) + lv; },
   },
   {
@@ -189,8 +199,9 @@ const SHOP_UPGRADES = [
     name: "Wide Berth",
     desc: "+10% weapon area per level",
     icon: "fx_shockwave",
+    tier: 1,
     maxLevel: 6,
-    costBase: 22, costGrowth: 18,
+    costBase: 110, costGrowth: 90,
     apply(p, lv) { p.areaMult *= Math.pow(1.10, lv); },
   },
   {
@@ -198,8 +209,9 @@ const SHOP_UPGRADES = [
     name: "Dual Wielder",
     desc: "Start with Bonk Orbs already equipped",
     icon: "fx_orb",
+    tier: 1,
     maxLevel: 1,
-    costBase: 50, costGrowth: 0,
+    costBase: 250, costGrowth: 0,
     apply(p, lv) { if (lv > 0) givePlayerWeapon(p, "orbs"); },
   },
   {
@@ -207,9 +219,114 @@ const SHOP_UPGRADES = [
     name: "Scholar",
     desc: "+15% XP gain per level (reach levels faster)",
     icon: "pickup_gem_large",
+    tier: 1,
     maxLevel: 5,
-    costBase: 28, costGrowth: 20,
+    costBase: 140, costGrowth: 100,
     apply(p, lv) { p._xpMult = (p._xpMult || 1) * Math.pow(1.15, lv); },
+  },
+
+  // ---- Tier 2 (unlocked after completing run 1) ----
+  {
+    id: "hp_deep",
+    name: "Iron Will",
+    desc: "+40 starting Max HP per level",
+    icon: "ui_heart",
+    tier: 2,
+    maxLevel: 6,
+    costBase: 300, costGrowth: 200,
+    apply(p, lv) { p.maxHp += lv * 40; p.hp = p.maxHp; },
+  },
+  {
+    id: "deaths_edge",
+    name: "Death's Edge",
+    desc: "+20% damage while below 40% HP, per level",
+    icon: "fx_hammer",
+    tier: 2,
+    maxLevel: 5,
+    costBase: 350, costGrowth: 250,
+    apply(p, lv) { p._deathsEdge = (p._deathsEdge || 0) + lv * 0.20; },
+  },
+  {
+    id: "third_weapon",
+    name: "Arsenal",
+    desc: "Start with a third weapon slot unlocked",
+    icon: "fx_bolt",
+    tier: 2,
+    maxLevel: 1,
+    costBase: 500, costGrowth: 0,
+    apply(p, lv) { if (lv > 0) { p._extraWeaponSlots = (p._extraWeaponSlots || 0) + 1; givePlayerWeapon(p, "bolt"); } },
+  },
+  {
+    id: "swift_bolts",
+    name: "Swiftshot",
+    desc: "+20% projectile speed & +10% cooldown reduction per level",
+    icon: "fx_bolt",
+    tier: 2,
+    maxLevel: 5,
+    costBase: 280, costGrowth: 180,
+    apply(p, lv) { p._projSpeedMult = (p._projSpeedMult || 1) * Math.pow(1.20, lv); p.cdMult *= Math.pow(0.90, lv); },
+  },
+  {
+    id: "siege_aura",
+    name: "Siege Aura",
+    desc: "Enemies in your aura are slowed 15% per level",
+    icon: "fx_aura",
+    tier: 2,
+    maxLevel: 4,
+    costBase: 320, costGrowth: 220,
+    apply(p, lv) { p._auraSlowStrength = (p._auraSlowStrength || 0) + lv * 0.15; },
+  },
+
+  // ---- Tier 3 (unlocked after completing run 2) ----
+  {
+    id: "last_stand",
+    name: "Last Stand",
+    desc: "Once per run, survive a killing blow at 1 HP",
+    icon: "ui_heart",
+    tier: 3,
+    maxLevel: 1,
+    costBase: 1200, costGrowth: 0,
+    apply(p, lv) { if (lv > 0) p._lastStand = true; },
+  },
+  {
+    id: "berserker",
+    name: "Berserker",
+    desc: "+5% damage per kill in a 4s window, stacks up to 10×",
+    icon: "fx_hammer",
+    tier: 3,
+    maxLevel: 3,
+    costBase: 800, costGrowth: 600,
+    apply(p, lv) { p._berserkerStacks = 0; p._berserkerTimer = 0; p._berserkerMult = lv * 0.05; },
+  },
+  {
+    id: "master_arms",
+    name: "Master of Arms",
+    desc: "All weapons start 1 level higher",
+    icon: "fx_orb",
+    tier: 3,
+    maxLevel: 3,
+    costBase: 900, costGrowth: 700,
+    apply(p, lv) { p._weaponHeadstart = (p._weaponHeadstart || 0) + lv; },
+  },
+  {
+    id: "titan_frame",
+    name: "Titan Frame",
+    desc: "+60 Max HP and +3 armor per level",
+    icon: "ui_frame",
+    tier: 3,
+    maxLevel: 5,
+    costBase: 600, costGrowth: 400,
+    apply(p, lv) { p.maxHp += lv * 60; p.hp = p.maxHp; p.armor += lv * 3; },
+  },
+  {
+    id: "gold_tide",
+    name: "Gold Tide",
+    desc: "+3 bonus gold per kill per level",
+    icon: "ui_badge",
+    tier: 3,
+    maxLevel: 5,
+    costBase: 700, costGrowth: 500,
+    apply(p, lv) { p._goldBonus = (p._goldBonus || 0) + lv * 3; },
   },
 ];
 
@@ -222,6 +339,15 @@ function applyShopBonuses(p) {
   for (const upg of SHOP_UPGRADES) {
     const lv = meta.shop[upg.id] || 0;
     if (lv > 0) upg.apply(p, lv);
+  }
+  // Master of Arms: level up each starting weapon by the headstart amount.
+  if (p._weaponHeadstart > 0) {
+    for (const w of p.weapons) {
+      for (let i = 0; i < p._weaponHeadstart; i++) {
+        const def = WEAPONS[w.id];
+        if (w.level < def.maxLevel) { w.level++; def.levelUp(w); }
+      }
+    }
   }
 }
 
@@ -444,8 +570,9 @@ const WEAPONS = {
         const targets = findNearestEnemies(p, w.count + p.projectileBonus);
         for (const t of targets) {
           const ang = angleTo(p, t);
+          const spd = w.speed * (p._projSpeedMult || 1);
           state.projectiles.push({
-            x: p.x, y: p.y, vx: Math.cos(ang) * w.speed, vy: Math.sin(ang) * w.speed,
+            x: p.x, y: p.y, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd,
             life: 2.5, damage: w.damage * p.damageMult, sprite: "fx_bolt",
             r: 14, homing: 2.2, target: t,
           });
@@ -539,10 +666,14 @@ const WEAPONS = {
     update(w, dt, p) {
       const rad = w.radius * p.areaMult;
       const dmg = w.dps * dt * p.damageMult;
+      const slowFactor = p._auraSlowStrength ? Math.max(0.1, 1 - p._auraSlowStrength) : 1;
       for (const e of state.enemies) {
         if (e.dead) continue;
         if (dist2(e, p) < (rad + e.r) ** 2) {
           dealDamage(e, dmg, { kx: 0, ky: 0, knock: 0 }, true);
+          e._auraSlow = slowFactor;
+        } else {
+          e._auraSlow = 1;
         }
       }
     },
@@ -626,10 +757,16 @@ function currentWave() {
 }
 
 function timeDifficultyMultiplier() {
-  // Enemy HP and damage scale over time.
+  // Enemy HP and damage scale over time within a run.
   const m = state.time / 60;
   return 1 + m * 0.35 + (m * m) * 0.03;
 }
+
+// Extra multiplier based on how many runs the player has completed.
+// Run 0 = 1.0x, run 1 = 1.5x HP / 1.35x dmg, run 2 = 2.0x HP / 1.7x dmg, etc.
+function runHpMultiplier()  { return 1 + meta.runNumber * 0.5; }
+function runDmgMultiplier() { return 1 + meta.runNumber * 0.35; }
+function runSpawnMultiplier() { return 1 + meta.runNumber * 0.2; }
 
 let nextEnemyId = 1;
 
@@ -640,6 +777,8 @@ function spawnEnemy(type) {
   const ang = rand(0, Math.PI * 2);
   const r = rand(650, 780);
   const mul = timeDifficultyMultiplier();
+  const hpMul = mul * runHpMultiplier();
+  const dmgMul = mul * runDmgMultiplier();
   const e = {
     id: nextEnemyId++,
     type,
@@ -647,9 +786,9 @@ function spawnEnemy(type) {
     x: p.x + Math.cos(ang) * r,
     y: p.y + Math.sin(ang) * r,
     vx: 0, vy: 0,
-    hp: def.hp * mul,
-    maxHp: def.hp * mul,
-    dmg: def.dmg * mul,
+    hp: def.hp * hpMul,
+    maxHp: def.hp * hpMul,
+    dmg: def.dmg * dmgMul,
     speed: def.speed,
     r: def.r,
     xp: def.xp,
@@ -676,9 +815,9 @@ function spawnBoss() {
     x: p.x + Math.cos(ang) * 500,
     y: p.y + Math.sin(ang) * 500,
     vx: 0, vy: 0,
-    hp: 8000 * timeDifficultyMultiplier(),
-    maxHp: 8000 * timeDifficultyMultiplier(),
-    dmg: 35,
+    hp: 8000 * timeDifficultyMultiplier() * runHpMultiplier(),
+    maxHp: 8000 * timeDifficultyMultiplier() * runHpMultiplier(),
+    dmg: 35 + meta.runNumber * 10,
     speed: 90,
     r: 72,
     xp: 500,
@@ -717,6 +856,12 @@ function killEnemy(e) {
   e.dead = true;
   state.kills++;
   state.gold += 1 + (state.player._goldBonus || 0);
+  // Berserker: gain a stack on kill, reset 4s timer, cap at 10.
+  const p = state.player;
+  if (p._berserkerMult) {
+    p._berserkerStacks = Math.min(10, (p._berserkerStacks || 0) + 1);
+    p._berserkerTimer = 4;
+  }
   // XP drop.
   if (e.isBoss) {
     // Shower of gems + healing.
@@ -835,6 +980,14 @@ function update(dt) {
   if (p.iframes > 0) p.iframes -= dt;
   if (p.attackAnim > 0) p.attackAnim -= dt;
 
+  // Apply transient damage bonuses (Death's Edge, Berserker) into damageMult each tick.
+  // We store the base damageMult and recompute each frame so bonuses stack correctly.
+  p._baseDamageMult = p._baseDamageMult || p.damageMult;
+  let tickDmgMult = p._baseDamageMult;
+  if (p._deathsEdge && p.hp / p.maxHp < 0.4) tickDmgMult *= (1 + p._deathsEdge);
+  if (p._berserkerStacks > 0 && p._berserkerMult) tickDmgMult *= (1 + p._berserkerStacks * p._berserkerMult);
+  p.damageMult = tickDmgMult;
+
   // ----- Weapons update -----
   for (const w of p.weapons) {
     const def = WEAPONS[w.id];
@@ -844,7 +997,7 @@ function update(dt) {
   // ----- Spawn enemies -----
   if (!state.bossSpawned) {
     const wave = currentWave();
-    spawnAccum += dt * wave.rate * (1 + state.time / 120);
+    spawnAccum += dt * wave.rate * (1 + state.time / 120) * runSpawnMultiplier();
     const cap = wave.cap + Math.floor(state.time / 20);
     while (spawnAccum >= 1 && state.enemies.length < cap) {
       spawnAccum -= 1;
@@ -874,12 +1027,13 @@ function update(dt) {
     const dx = p.x - e.x, dy = p.y - e.y;
     const d = Math.hypot(dx, dy) || 1;
     const nx = dx / d, ny = dy / d;
+    const eSlow = e._auraSlow !== undefined ? e._auraSlow : 1;
 
     if (e.kind === "caster") {
       // Stop at medium range and fire projectile.
       if (d > 280) {
-        e.x += nx * e.speed * dt;
-        e.y += ny * e.speed * dt;
+        e.x += nx * e.speed * eSlow * dt;
+        e.y += ny * e.speed * eSlow * dt;
       }
       e.castTimer -= dt;
       if (e.castTimer <= 0) {
@@ -892,8 +1046,8 @@ function update(dt) {
       }
     } else if (e.kind === "charger") {
       if (e.chargeState === "idle") {
-        e.x += nx * e.speed * dt;
-        e.y += ny * e.speed * dt;
+        e.x += nx * e.speed * eSlow * dt;
+        e.y += ny * e.speed * eSlow * dt;
         if (d < 260) {
           e.chargeState = "wind";
           e.chargeTimer = 0.7;
@@ -903,14 +1057,14 @@ function update(dt) {
         e.chargeTimer -= dt;
         if (e.chargeTimer <= 0) { e.chargeState = "dash"; e.chargeTimer = 0.5; }
       } else if (e.chargeState === "dash") {
-        e.x += e.chargeDir.x * e.speed * 4 * dt;
-        e.y += e.chargeDir.y * e.speed * 4 * dt;
+        e.x += e.chargeDir.x * e.speed * 4 * eSlow * dt;
+        e.y += e.chargeDir.y * e.speed * 4 * eSlow * dt;
         e.chargeTimer -= dt;
         if (e.chargeTimer <= 0) { e.chargeState = "idle"; }
       }
     } else if (e.kind === "bomber") {
-      e.x += nx * e.speed * dt;
-      e.y += ny * e.speed * dt;
+      e.x += nx * e.speed * eSlow * dt;
+      e.y += ny * e.speed * eSlow * dt;
       if (d < 60 && e.fuseTimer < 0) e.fuseTimer = 0.5;
       if (e.fuseTimer >= 0) {
         e.fuseTimer -= dt;
@@ -927,8 +1081,8 @@ function update(dt) {
         }
       }
     } else if (e.kind === "boss") {
-      e.x += nx * e.speed * dt;
-      e.y += ny * e.speed * dt;
+      e.x += nx * e.speed * eSlow * dt;
+      e.y += ny * e.speed * eSlow * dt;
       e.castTimer -= dt;
       if (e.castTimer <= 0) {
         e.castTimer = 1.6;
@@ -944,8 +1098,8 @@ function update(dt) {
       }
     } else {
       // walker / flyer / splitter: chase the player.
-      e.x += nx * e.speed * dt;
-      e.y += ny * e.speed * dt;
+      e.x += nx * e.speed * eSlow * dt;
+      e.y += ny * e.speed * eSlow * dt;
     }
 
     // Player contact damage.
@@ -1054,8 +1208,23 @@ function update(dt) {
 
   // Death.
   if (p.hp <= 0 && !state.ended) {
-    p.hp = 0;
-    endRun(false);
+    if (p._lastStand) {
+      p._lastStand = false;
+      p.hp = 1;
+      p.iframes = 2.0;
+      state.shake = 20;
+    } else {
+      p.hp = 0;
+      endRun(false);
+    }
+  }
+
+  // Berserker: decay stack timer.
+  if (p._berserkerStacks > 0) {
+    p._berserkerTimer -= dt;
+    if (p._berserkerTimer <= 0) {
+      p._berserkerStacks = 0;
+    }
   }
 
   updateHUD();
@@ -1444,8 +1613,11 @@ function startRun() {
 function endRun(won) {
   state.ended = true;
   state.running = false;
-  // Bank gold into meta.
+  // Bank gold into meta. Victories advance the run number.
   meta.gold += state.gold;
+  if (won) {
+    meta.runNumber = (meta.runNumber || 0) + 1;
+  }
   saveMeta();
   const title = document.getElementById("end-title");
   const stats = document.getElementById("end-stats");
@@ -1492,6 +1664,11 @@ function showHome() {
 
 function renderHomepage() {
   document.getElementById("home-gold").textContent = meta.gold;
+  const runEl = document.getElementById("home-run-number");
+  if (runEl) {
+    const n = meta.runNumber || 0;
+    runEl.textContent = n === 0 ? "Run 1 — Good luck!" : `Run ${n + 1} — ${n} completion${n > 1 ? "s" : ""}`;
+  }
   // Show active shop bonuses.
   const bonusEl = document.getElementById("meta-bonuses");
   const lines = [];
@@ -1577,7 +1754,27 @@ function renderShop() {
   document.getElementById("shop-gold-display").textContent = meta.gold;
   const container = document.getElementById("shop-items");
   container.innerHTML = "";
+
+  const TIER_LABELS = ["", "Tier I", "Tier II", "Tier III"];
+  const TIER_UNLOCK = [0, 0, 1, 2]; // runs needed to unlock each tier
+
+  let currentTier = 0;
   for (const upg of SHOP_UPGRADES) {
+    // Inject a tier header when we enter a new tier.
+    if (upg.tier !== currentTier) {
+      currentTier = upg.tier;
+      const runsNeeded = TIER_UNLOCK[currentTier];
+      const unlocked = meta.runNumber >= runsNeeded;
+      const header = document.createElement("div");
+      header.className = "shop-tier-header" + (unlocked ? "" : " locked");
+      header.innerHTML = unlocked
+        ? `<span>${TIER_LABELS[currentTier]}</span>`
+        : `<span>${TIER_LABELS[currentTier]} — Complete run ${runsNeeded} to unlock</span>`;
+      container.appendChild(header);
+    }
+
+    const runsNeeded = TIER_UNLOCK[upg.tier];
+    const tierUnlocked = meta.runNumber >= runsNeeded;
     const owned = meta.shop[upg.id] || 0;
     const maxed = owned >= upg.maxLevel;
     const cost = maxed ? 0 : shopUpgradeCost(upg);
@@ -1586,20 +1783,30 @@ function renderShop() {
     const iconUrl = iconCanvas?.dataUrl ?? `sprites/${upg.icon}.png`;
 
     const el = document.createElement("div");
-    el.className = "shop-item" + (maxed ? " maxed" : !canAfford ? " cant-afford" : "");
-    el.innerHTML = `
-      ${maxed ? '<div class="shop-item-badge">MAX</div>' : ""}
-      <div class="shop-item-icon" style="background-image:url('${iconUrl}')"></div>
-      <div class="shop-item-name">${upg.name}</div>
-      <div class="shop-item-desc">${upg.desc}</div>
-      <div class="shop-item-level">${owned > 0 ? `Lv ${owned} / ${upg.maxLevel}` : `Max Lv ${upg.maxLevel}`}</div>
-      <div class="shop-item-cost">
-        <span class="gold-coin">◈</span>
-        <span>${maxed ? "MAXED" : cost}</span>
-      </div>
-    `;
-    if (!maxed && canAfford) {
-      el.onclick = () => buyShopItem(upg);
+    if (!tierUnlocked) {
+      el.className = "shop-item tier-locked";
+      el.innerHTML = `
+        <div class="shop-item-icon" style="background-image:url('${iconUrl}'); filter:grayscale(1) opacity(0.4)"></div>
+        <div class="shop-item-name" style="opacity:0.4">${upg.name}</div>
+        <div class="shop-item-desc" style="opacity:0.3">${upg.desc}</div>
+        <div class="shop-item-cost" style="opacity:0.4">🔒 Locked</div>
+      `;
+    } else {
+      el.className = "shop-item" + (maxed ? " maxed" : !canAfford ? " cant-afford" : "");
+      el.innerHTML = `
+        ${maxed ? '<div class="shop-item-badge">MAX</div>' : ""}
+        <div class="shop-item-icon" style="background-image:url('${iconUrl}')"></div>
+        <div class="shop-item-name">${upg.name}</div>
+        <div class="shop-item-desc">${upg.desc}</div>
+        <div class="shop-item-level">${owned > 0 ? `Lv ${owned} / ${upg.maxLevel}` : `Max Lv ${upg.maxLevel}`}</div>
+        <div class="shop-item-cost">
+          <span class="gold-coin">◈</span>
+          <span>${maxed ? "MAXED" : cost}</span>
+        </div>
+      `;
+      if (!maxed && canAfford) {
+        el.onclick = () => buyShopItem(upg);
+      }
     }
     container.appendChild(el);
   }
