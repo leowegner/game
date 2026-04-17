@@ -575,3 +575,33 @@ html, body {
   color: #7ad0ff;
   letter-spacing: 1px;
 }
+
+/* ===== Touch joystick ===== */
+.joystick {
+  position: absolute;
+  left: 40px;
+  bottom: 40px;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: rgba(30, 20, 50, 0.35);
+  border: 2px solid rgba(150, 120, 220, 0.5);
+  touch-action: none;
+  z-index: 50;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.joystick-stick {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 64px;
+  height: 64px;
+  margin-left: -32px;
+  margin-top: -32px;
+  border-radius: 50%;
+  background: rgba(150, 120, 220, 0.7);
+  border: 2px solid rgba(220, 200, 255, 0.8);
+  pointer-events: none;
+}
+.joystick.hidden { display: none; }

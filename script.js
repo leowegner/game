@@ -367,6 +367,70 @@ window.addEventListener("keydown", (e) => {
 });
 window.addEventListener("keyup", (e) => { keys[e.key.toLowerCase()] = false; });
 
+// ----- Touch joystick -----
+const touchInput = { x: 0, y: 0, active: false };
+(() => {
+  const joy = document.getElementById("joystick");
+  const stick = document.getElementById("joystick-stick");
+  if (!joy || !stick) return;
+
+  // Show joystick on touch-capable devices.
+  const isTouch = ("ontouchstart" in window) || navigator.maxTouchPoints > 0;
+  if (!isTouch) return;
+  joy.dataset.enabled = "1";
+
+  const RADIUS = 60; // max stick travel in px
+  let pointerId = null;
+  let cx = 0, cy = 0;
+
+  const setStick = (dx, dy) => {
+    const mag = Math.hypot(dx, dy);
+    const clamped = Math.min(mag, RADIUS);
+    const nx = mag > 0 ? dx / mag : 0;
+    const ny = mag > 0 ? dy / mag : 0;
+    stick.style.transform = `translate(${nx * clamped}px, ${ny * clamped}px)`;
+    const strength = clamped / RADIUS;
+    touchInput.x = nx * strength;
+    touchInput.y = ny * strength;
+    touchInput.active = strength > 0.05;
+  };
+
+  const reset = () => {
+    pointerId = null;
+    stick.style.transform = "translate(0,0)";
+    touchInput.x = 0; touchInput.y = 0; touchInput.active = false;
+  };
+
+  joy.addEventListener("pointerdown", (e) => {
+    if (pointerId !== null) return;
+    pointerId = e.pointerId;
+    joy.setPointerCapture(pointerId);
+    const r = joy.getBoundingClientRect();
+    cx = r.left + r.width / 2;
+    cy = r.top + r.height / 2;
+    setStick(e.clientX - cx, e.clientY - cy);
+    e.preventDefault();
+  });
+  joy.addEventListener("pointermove", (e) => {
+    if (e.pointerId !== pointerId) return;
+    setStick(e.clientX - cx, e.clientY - cy);
+    e.preventDefault();
+  });
+  const end = (e) => {
+    if (e.pointerId !== pointerId) return;
+    reset();
+  };
+  joy.addEventListener("pointerup", end);
+  joy.addEventListener("pointercancel", end);
+  joy.addEventListener("pointerleave", end);
+})();
+
+function setJoystickVisible(show) {
+  const joy = document.getElementById("joystick");
+  if (!joy || joy.dataset.enabled !== "1") return;
+  joy.classList.toggle("hidden", !show);
+}
+
 const state = {
   running: false,
   paused: false,
@@ -950,8 +1014,12 @@ function update(dt) {
   if (keys["s"] || keys["arrowdown"]) my += 1;
   if (keys["a"] || keys["arrowleft"]) mx -= 1;
   if (keys["d"] || keys["arrowright"]) mx += 1;
+  if (touchInput.active && mx === 0 && my === 0) {
+    mx = touchInput.x;
+    my = touchInput.y;
+  }
   const mag = Math.hypot(mx, my);
-  p.isMoving = mag > 0;
+  p.isMoving = mag > 0.05;
   if (p.isMoving) {
     mx /= mag; my /= mag;
     p.dir.x = mx; p.dir.y = my;
@@ -1607,6 +1675,7 @@ function startRun() {
   applyShopBonuses(state.player);
   showScreen(null);
   document.getElementById("hud").classList.remove("hidden");
+  setJoystickVisible(true);
   updateHUD();
 }
 
@@ -1633,6 +1702,7 @@ function endRun(won) {
     <div>Total gold: <b>${meta.gold}</b> ◈</div>
   `;
   document.getElementById("hud").classList.add("hidden");
+  setJoystickVisible(false);
   showScreen("end-screen");
 }
 
@@ -1656,6 +1726,7 @@ function showScreen(id) {
 function showHome() {
   state.running = false;
   document.getElementById("hud").classList.add("hidden");
+  setJoystickVisible(false);
   renderHomepage();
   showScreen("home-screen");
 }
