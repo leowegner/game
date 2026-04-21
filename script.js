@@ -520,8 +520,9 @@ const touchInput = { x: 0, y: 0, active: false };
 
 function setJoystickVisible(show) {
   const joy = document.getElementById("joystick");
-  if (!joy || joy.dataset.enabled !== "1") return;
-  joy.classList.toggle("hidden", !show);
+  const pauseBtn = document.getElementById("touch-pause");
+  if (joy && joy.dataset.enabled === "1") joy.classList.toggle("hidden", !show);
+  if (pauseBtn && joy && joy.dataset.enabled === "1") pauseBtn.classList.toggle("hidden", !show);
 }
 
 const state = {
@@ -939,9 +940,11 @@ function timeDifficultyMultiplier() {
 
 // Extra multiplier based on how many runs the player has completed.
 // Run 0 = 1.0x, run 1 = 1.5x HP / 1.35x dmg, run 2 = 2.0x HP / 1.7x dmg, etc.
-function runHpMultiplier()  { return 1 + meta.runNumber * 0.5; }
-function runDmgMultiplier() { return 1 + meta.runNumber * 0.35; }
-function runSpawnMultiplier() { return 1 + meta.runNumber * 0.2; }
+// Use current level (1..50) instead of run number so each level feels distinct.
+function levelIdx() { return Math.max(0, currentLevelNumber() - 1); }
+function runHpMultiplier()  { return 1 + levelIdx() * 0.35; }
+function runDmgMultiplier() { return 1 + levelIdx() * 0.22; }
+function runSpawnMultiplier() { return 1 + levelIdx() * 0.12; }
 
 let nextEnemyId = 1;
 
@@ -1539,11 +1542,20 @@ window.addEventListener("keydown", (e) => {
       pickChoice(state.activeChoices[n - 1]);
     }
   }
-  if (e.key.toLowerCase() === "p" && state.running && !state.ended && state.upgradePending === 0) {
-    state.paused = !state.paused;
-    if (state.paused) showScreen("pause-screen"); else showScreen(null);
-  }
+  if (e.key.toLowerCase() === "p") togglePause();
 });
+
+function togglePause() {
+  if (!state.running || state.ended || state.upgradePending > 0) return;
+  state.paused = !state.paused;
+  if (state.paused) showScreen("pause-screen"); else showScreen(null);
+}
+
+(() => {
+  const btn = document.getElementById("touch-pause");
+  if (!btn) return;
+  btn.addEventListener("click", (e) => { e.preventDefault(); togglePause(); });
+})();
 
 // ---------- HUD ----------
 

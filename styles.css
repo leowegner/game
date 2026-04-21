@@ -605,3 +605,26 @@ html, body {
   pointer-events: none;
 }
 .joystick.hidden { display: none; }
+
+/* ===== Touch pause button ===== */
+.touch-pause {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: rgba(30, 20, 50, 0.6);
+  border: 2px solid rgba(150, 120, 220, 0.7);
+  color: #e0d0ff;
+  font-size: 22px;
+  font-weight: bold;
+  letter-spacing: 2px;
+  cursor: pointer;
+  z-index: 50;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+.touch-pause:active { background: rgba(80, 50, 120, 0.8); }
+.touch-pause.hidden { display: none; }
