@@ -328,6 +328,99 @@ const SHOP_UPGRADES = [
     costBase: 700, costGrowth: 500,
     apply(p, lv) { p._goldBonus = (p._goldBonus || 0) + lv * 3; },
   },
+  // ---- Tier 4 ----
+  {
+    id: "tier4_damage",
+    name: "Apex Force",
+    desc: "+18% damage per level",
+    icon: "fx_hammer",
+    tier: 4,
+    maxLevel: 10,
+    costBase: 1200, costGrowth: 1000,
+    apply(p, lv) { p.damageMult *= Math.pow(1.18, lv); },
+  },
+  {
+    id: "tier4_hp",
+    name: "Titanic Constitution",
+    desc: "+40 starting Max HP per level",
+    icon: "ui_heart",
+    tier: 4,
+    maxLevel: 8,
+    costBase: 1000, costGrowth: 900,
+    apply(p, lv) { p.maxHp += lv * 40; p.hp = p.maxHp; },
+  },
+  {
+    id: "tier4_crit",
+    name: "Executioner",
+    desc: "+3% crit chance per level, +50% crit damage",
+    icon: "fx_shockwave",
+    tier: 4,
+    maxLevel: 6,
+    costBase: 1100, costGrowth: 950,
+    apply(p, lv) { p._critChance = (p._critChance || 0) + lv * 0.03; p._critMult = 1.5; },
+  },
+  // ---- Tier 5 ----
+  {
+    id: "tier5_damage",
+    name: "Overwhelming Force",
+    desc: "+25% damage per level",
+    icon: "fx_hammer",
+    tier: 5,
+    maxLevel: 10,
+    costBase: 2000, costGrowth: 1800,
+    apply(p, lv) { p.damageMult *= Math.pow(1.25, lv); },
+  },
+  {
+    id: "tier5_regen",
+    name: "Eternal Vitality",
+    desc: "+1 HP/sec regen per level",
+    icon: "pickup_heart",
+    tier: 5,
+    maxLevel: 8,
+    costBase: 1500, costGrowth: 1400,
+    apply(p, lv) { p.regen += lv; },
+  },
+  {
+    id: "tier5_speed",
+    name: "Supersonic",
+    desc: "+15% move speed per level",
+    icon: "ui_badge",
+    tier: 5,
+    maxLevel: 7,
+    costBase: 1800, costGrowth: 1600,
+    apply(p, lv) { p.speed *= Math.pow(1.15, lv); },
+  },
+  // ---- Tier 6 ----
+  {
+    id: "tier6_god_damage",
+    name: "Divine Wrath",
+    desc: "+30% damage per level",
+    icon: "fx_hammer",
+    tier: 6,
+    maxLevel: 12,
+    costBase: 3000, costGrowth: 2500,
+    apply(p, lv) { p.damageMult *= Math.pow(1.30, lv); },
+  },
+  {
+    id: "tier6_god_hp",
+    name: "Divine Protection",
+    desc: "+60 starting Max HP per level",
+    icon: "ui_heart",
+    tier: 6,
+    maxLevel: 10,
+    costBase: 2500, costGrowth: 2200,
+    apply(p, lv) { p.maxHp += lv * 60; p.hp = p.maxHp; },
+  },
+  {
+    id: "tier6_multi",
+    name: "Omnipresence",
+    desc: "+4% weapon attack speed per level",
+    icon: "fx_shockwave",
+    tier: 6,
+    maxLevel: 8,
+    costBase: 2800, costGrowth: 2400,
+    apply(p, lv) { p.attackSpeedMult = (p.attackSpeedMult || 1) * Math.pow(1.04, lv); },
+  },
 ];
 
 function shopUpgradeCost(upg) {
@@ -1826,8 +1919,8 @@ function renderShop() {
   const container = document.getElementById("shop-items");
   container.innerHTML = "";
 
-  const TIER_LABELS = ["", "Tier I", "Tier II", "Tier III"];
-  const TIER_UNLOCK = [0, 0, 1, 2]; // runs needed to unlock each tier
+  const TIER_LABELS = ["", "Tier I", "Tier II", "Tier III", "Tier IV", "Tier V", "Tier VI"];
+  const TIER_UNLOCK = [0, 0, 1, 2, 3, 4, 5]; // runs needed to unlock each tier
 
   let currentTier = 0;
   for (const upg of SHOP_UPGRADES) {
