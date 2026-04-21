@@ -643,6 +643,15 @@ const WEAPONS = {
           range: range,
           arc: w.arc,
         });
+        if (w._godhammer) {
+          const sx = p.x + p.dir.x * 60, sy = p.y + p.dir.y * 60;
+          for (const e of state.enemies) {
+            if (e.dead) continue;
+            const dx = e.x - sx, dy = e.y - sy, d = Math.hypot(dx, dy);
+            if (d < 180 + e.r) dealDamage(e, dmg * 0.6, { kx: dx / (d || 1), ky: dy / (d || 1), knock: 180 });
+          }
+          spawnEffect("shockwave", sx, sy, 0.35, { radius: 180 });
+        }
       }
     },
   },
@@ -803,6 +812,7 @@ const WEAPONS = {
         }
         spawnEffect("shockwave", p.x, p.y, 0.45, { radius: rad });
         state.shake = Math.max(state.shake, 6);
+        if (w._double) w.timer = 0.25;
       }
     },
   },
@@ -825,10 +835,11 @@ const WEAPONS = {
       const rad = w.radius * p.areaMult;
       const dmg = w.dps * dt * p.damageMult;
       const slowFactor = p._auraSlowStrength ? Math.max(0.1, 1 - p._auraSlowStrength) : 1;
+      const mul = w._inferno ? 2 : 1;
       for (const e of state.enemies) {
         if (e.dead) continue;
         if (dist2(e, p) < (rad + e.r) ** 2) {
-          dealDamage(e, dmg, { kx: 0, ky: 0, knock: 0 }, true);
+          dealDamage(e, dmg * mul, { kx: 0, ky: 0, knock: 0 }, true);
           e._auraSlow = slowFactor;
         } else {
           e._auraSlow = 1;
@@ -846,6 +857,70 @@ const WEAPONS = {
       ctx.restore();
     },
   },
+};
+
+// ---------- Ultra upgrades ----------
+// Unlocked once a weapon or passive reaches its maxLevel. One ultra per item.
+// Stored on the weapon object as w.ultra = true, or on passiveLevels[id + "_ultra"].
+
+const WEAPON_ULTRAS = {
+  hammer: {
+    name: "Thonk Hammer: GODHAMMER",
+    desc: "Every swing spawns a shockwave. +50% range, +40% damage.",
+    apply(w) {
+      w.range *= 1.5; w.damage *= 1.4; w.arc = Math.PI * 1.2;
+      w._godhammer = true;
+    },
+  },
+  orbs: {
+    name: "Bonk Orbs: STARFALL",
+    desc: "+2 orbs, orbs leave damaging trails. +60% radius.",
+    apply(w) {
+      w.count += 2; w.radius *= 1.6; w.damage *= 1.3;
+      w._starfall = true;
+    },
+  },
+  bolt: {
+    name: "Seeker Bolts: HAILSTORM",
+    desc: "Triple fire rate, +3 bolts per volley, pierce enemies.",
+    apply(w) {
+      w.cd *= 0.33; w.count += 3; w._pierce = true; w.damage *= 1.2;
+    },
+  },
+  lightning: {
+    name: "Chain Lightning: THUNDERGOD",
+    desc: "Chains to +4 targets, +100% damage, half cooldown.",
+    apply(w) {
+      w.targets += 4; w.damage *= 2.0; w.cd *= 0.5;
+    },
+  },
+  shockwave: {
+    name: "Shockwave: EARTHSHAKER",
+    desc: "Double radius, triggers twice in a row. +50% damage.",
+    apply(w) {
+      w.radius *= 2.0; w.damage *= 1.5; w._double = true;
+    },
+  },
+  aura: {
+    name: "Bleed Aura: INFERNO",
+    desc: "+150% DPS, +30% radius, enemies inside take double hits.",
+    apply(w) {
+      w.dps *= 2.5; w.radius *= 1.3; w._inferno = true;
+    },
+  },
+};
+
+const PASSIVE_ULTRAS = {
+  maxhp:  { name: "Vitality: IMMORTAL",      desc: "+200 Max HP, full heal, +2 HP/s regen",        apply(p) { p.maxHp += 200; p.hp = p.maxHp; p.regen += 2; } },
+  speed:  { name: "Swiftness: LIGHTSPEED",   desc: "+40% move speed, brief iframes after dash",    apply(p) { p.speed *= 1.4; p._dashIframes = true; } },
+  damage: { name: "Power: ANNIHILATION",     desc: "+50% damage",                                   apply(p) { p.damageMult *= 1.5; } },
+  cdr:    { name: "Haste: TIMEWARP",         desc: "-25% cooldowns",                                apply(p) { p.cdMult *= 0.75; } },
+  area:   { name: "Expansion: COSMIC",       desc: "+40% area / range",                             apply(p) { p.areaMult *= 1.4; } },
+  proj:   { name: "Multishot: BARRAGE",      desc: "+2 projectiles",                                apply(p) { p.projectileBonus += 2; } },
+  pickup: { name: "Magnetism: BLACK HOLE",   desc: "+200% pickup radius",                           apply(p) { p.pickupRadius *= 3.0; } },
+  armor:  { name: "Armor: ADAMANTINE",       desc: "+8 armor, 15% damage reduction",                apply(p) { p.armor += 8; p._dmgReduce = (p._dmgReduce || 0) + 0.15; } },
+  regen:  { name: "Regeneration: PHOENIX",   desc: "+3 HP/sec, revive once per run at 50% HP",      apply(p) { p.regen += 3; p._revive = (p._revive || 0) + 1; } },
+  luck:   { name: "Luck: JACKPOT",           desc: "+50% luck, +30% gold from kills",               apply(p) { p.luck += 0.5; p._goldMult = (p._goldMult || 1) * 1.3; } },
 };
 
 function givePlayerWeapon(p, id) {
@@ -1467,6 +1542,9 @@ function rollUpgradeChoices() {
       }
     } else if (existing.level < def.maxLevel) {
       pool.push({ type: "weaponUp", id, name: def.name, desc: def.desc + " (+)", icon: def.icon, level: existing.level + 1 });
+    } else if (!existing.ultra && WEAPON_ULTRAS[id]) {
+      const ult = WEAPON_ULTRAS[id];
+      pool.push({ type: "weaponUltra", id, name: ult.name, desc: ult.desc, icon: def.icon, level: "ULTRA" });
     }
   }
 
@@ -1476,6 +1554,9 @@ function rollUpgradeChoices() {
     const lv = passiveLevels[id] || 0;
     if (lv < def.maxLevel) {
       pool.push({ type: "passive", id, name: def.name, desc: def.desc, icon: def.icon, level: lv + 1 });
+    } else if (!passiveLevels[id + "_ultra"] && PASSIVE_ULTRAS[id]) {
+      const ult = PASSIVE_ULTRAS[id];
+      pool.push({ type: "passiveUltra", id, name: ult.name, desc: ult.desc, icon: def.icon, level: "ULTRA" });
     }
   }
 
@@ -1494,6 +1575,14 @@ function applyChoice(choice) {
   } else if (choice.type === "passive") {
     passiveLevels[choice.id] = (passiveLevels[choice.id] || 0) + 1;
     PASSIVES[choice.id].apply(p);
+  } else if (choice.type === "weaponUltra") {
+    const w = p.weapons.find((x) => x.id === choice.id);
+    if (w && !w.ultra) { w.ultra = true; WEAPON_ULTRAS[choice.id].apply(w); }
+  } else if (choice.type === "passiveUltra") {
+    if (!passiveLevels[choice.id + "_ultra"]) {
+      passiveLevels[choice.id + "_ultra"] = 1;
+      PASSIVE_ULTRAS[choice.id].apply(p);
+    }
   }
 }
 
@@ -1510,8 +1599,9 @@ function showUpgradeScreen() {
     return;
   }
   choices.forEach((c, i) => {
+    const isUltra = c.type === "weaponUltra" || c.type === "passiveUltra";
     const card = document.createElement("div");
-    card.className = "card";
+    card.className = "card" + (isUltra ? " card-ultra" : "");
     const iconCanvas = sprites[c.icon];
     const iconUrl = (iconCanvas && iconCanvas.dataUrl) ? iconCanvas.dataUrl : `sprites/${c.icon}.png`;
     card.innerHTML = `

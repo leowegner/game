@@ -628,3 +628,17 @@ html, body {
 }
 .touch-pause:active { background: rgba(80, 50, 120, 0.8); }
 .touch-pause.hidden { display: none; }
+
+/* ===== Ultra upgrade cards ===== */
+.card-ultra {
+  border: 2px solid #ffcc33 !important;
+  box-shadow: 0 0 24px rgba(255, 204, 51, 0.7), inset 0 0 12px rgba(255, 204, 51, 0.25) !important;
+  background: linear-gradient(180deg, #2a1a0a, #1a0f1e) !important;
+  animation: ultraPulse 1.6s ease-in-out infinite;
+}
+.card-ultra .card-title { color: #ffcc33; text-shadow: 0 0 8px rgba(255, 204, 51, 0.6); }
+.card-ultra .card-level { color: #ff8800; font-weight: bold; letter-spacing: 2px; }
+@keyframes ultraPulse {
+  0%, 100% { box-shadow: 0 0 24px rgba(255, 204, 51, 0.7), inset 0 0 12px rgba(255, 204, 51, 0.25); }
+  50% { box-shadow: 0 0 36px rgba(255, 204, 51, 1.0), inset 0 0 18px rgba(255, 204, 51, 0.45); }
+}
