@@ -892,6 +892,24 @@ const ENEMIES = {
   bomber:  { sprite: "enemy_bomber",  hp: 20,  speed: 95,  dmg: 28, r: 18, xp: 3, kind: "bomber" },
 };
 
+// Map level-data archetype strings to existing ENEMIES keys (sprite + AI kind).
+const ARCHETYPE_TO_ENEMY = {
+  melee: "goblin", ranged: "mage", caster: "mage", tank: "knight",
+  support: "mage", swarm: "bat", boss: "charger", flyer: "bat",
+  phantom: "bat", specter: "bat", ethereal: "bat",
+  void_guardian: "knight", summoner: "mage", calamity: "charger",
+  charger: "charger",
+};
+
+function currentLevelNumber() {
+  // Level 1..50, capped at 50.
+  return Math.min(50, (meta.runNumber || 0) + 1);
+}
+
+function currentLevelData() {
+  return LEVELS[currentLevelNumber()] || LEVELS[1];
+}
+
 // Wave schedule: each entry = { at: minutes, types: [...], rate: spawns/sec, cap: soft }.
 // The actual count scales with time.
 const WAVES = [
@@ -936,16 +954,35 @@ function spawnEnemy(type) {
   const mul = timeDifficultyMultiplier();
   const hpMul = mul * runHpMultiplier();
   const dmgMul = mul * runDmgMultiplier();
+
+  // Optionally flavor this enemy using the current level's enemy list.
+  // Picks a random entry; blends its stats with the base ENEMY definition.
+  const lvlData = currentLevelData();
+  let nameOverride = null;
+  let flavor = null;
+  if (lvlData && lvlData.enemies && lvlData.enemies.length > 0) {
+    flavor = lvlData.enemies[Math.floor(Math.random() * lvlData.enemies.length)];
+    nameOverride = flavor.name;
+  }
+
+  const flavorHp = flavor ? flavor.hp / 40 : 1;       // normalize roughly
+  const flavorDmg = flavor ? flavor.damage / 10 : 1;
+  const blend = flavor ? 0.5 : 0;                     // 50% blend
+
+  const baseHp = def.hp * (1 - blend) + def.hp * flavorHp * blend;
+  const baseDmg = def.dmg * (1 - blend) + def.dmg * flavorDmg * blend;
+
   const e = {
     id: nextEnemyId++,
     type,
+    name: nameOverride,
     sprite: def.sprite,
     x: p.x + Math.cos(ang) * r,
     y: p.y + Math.sin(ang) * r,
     vx: 0, vy: 0,
-    hp: def.hp * hpMul,
-    maxHp: def.hp * hpMul,
-    dmg: def.dmg * dmgMul,
+    hp: baseHp * hpMul,
+    maxHp: baseHp * hpMul,
+    dmg: baseDmg * dmgMul,
     speed: def.speed,
     r: def.r,
     xp: def.xp,
@@ -1162,7 +1199,13 @@ function update(dt) {
     const cap = wave.cap + Math.floor(state.time / 20);
     while (spawnAccum >= 1 && state.enemies.length < cap) {
       spawnAccum -= 1;
-      const type = wave.types[randInt(0, wave.types.length - 1)];
+      // Prefer spawn types matching archetypes from the current level.
+      const lvlData = currentLevelData();
+      let type = wave.types[randInt(0, wave.types.length - 1)];
+      if (lvlData && lvlData.enemies && Math.random() < 0.7) {
+        const arche = lvlData.enemies[randInt(0, lvlData.enemies.length - 1)].type;
+        type = ARCHETYPE_TO_ENEMY[arche] || type;
+      }
       spawnEnemy(type);
     }
   }
@@ -1831,7 +1874,10 @@ function renderHomepage() {
   const runEl = document.getElementById("home-run-number");
   if (runEl) {
     const n = meta.runNumber || 0;
-    runEl.textContent = n === 0 ? "Run 1 — Good luck!" : `Run ${n + 1} — ${n} completion${n > 1 ? "s" : ""}`;
+    const lvlNum = Math.min(50, n + 1);
+    const lvlData = LEVELS[lvlNum];
+    const preview = lvlData ? lvlData.enemies.map(e => e.name).join(", ") : "";
+    runEl.textContent = `Level ${lvlNum} / 50 — ${preview}`;
   }
   // Show active shop bonuses.
   const bonusEl = document.getElementById("meta-bonuses");
