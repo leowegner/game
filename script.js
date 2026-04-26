@@ -442,6 +442,10 @@ function applyShopBonuses(p) {
       }
     }
   }
+  // Capture the base damage multiplier once shop bonuses are applied, so
+  // transient per-frame bonuses (Death's Edge, Berserker) stack on top of it
+  // without overwriting it.
+  p._baseDamageMult = p.damageMult;
 }
 
 // ---------- Core game state ----------
@@ -489,6 +493,9 @@ const touchInput = { x: 0, y: 0, active: false };
   };
 
   const reset = () => {
+    if (pointerId !== null && joy.hasPointerCapture?.(pointerId)) {
+      joy.releasePointerCapture(pointerId);
+    }
     pointerId = null;
     stick.style.transform = "translate(0,0)";
     touchInput.x = 0; touchInput.y = 0; touchInput.active = false;
@@ -1127,7 +1134,7 @@ function dealDamage(e, amount, push, quiet) {
 function killEnemy(e) {
   e.dead = true;
   state.kills++;
-  state.gold += 1 + (state.player._goldBonus || 0);
+  state.gold += (1 + (state.player._goldBonus || 0)) * (state.player._goldMult || 1);
   // Berserker: gain a stack on kill, reset 4s timer, cap at 10.
   const p = state.player;
   if (p._berserkerMult) {
@@ -1257,8 +1264,8 @@ function update(dt) {
   if (p.attackAnim > 0) p.attackAnim -= dt;
 
   // Apply transient damage bonuses (Death's Edge, Berserker) into damageMult each tick.
-  // We store the base damageMult and recompute each frame so bonuses stack correctly.
-  p._baseDamageMult = p._baseDamageMult || p.damageMult;
+  // _baseDamageMult is captured once in applyShopBonuses; recompute on top of it
+  // so transient bonuses stack without compounding.
   let tickDmgMult = p._baseDamageMult;
   if (p._deathsEdge && p.hp / p.maxHp < 0.4) tickDmgMult *= (1 + p._deathsEdge);
   if (p._berserkerStacks > 0 && p._berserkerMult) tickDmgMult *= (1 + p._berserkerStacks * p._berserkerMult);
@@ -1354,7 +1361,8 @@ function update(dt) {
           // Explode.
           spawnEffect("shockwave", e.x, e.y, 0.4, { radius: 90, color: "#ff8a3a" });
           if (dist(p, e) < 100 && p.iframes <= 0) {
-            p.hp -= Math.max(1, e.dmg - p.armor);
+            const reduction = p._dmgReduce || 0;
+            p.hp -= Math.max(1, e.dmg * (1 - reduction) - p.armor);
             p.iframes = 0.4;
             state.shake = 10;
           }
@@ -1386,7 +1394,8 @@ function update(dt) {
 
     // Player contact damage.
     if (d < e.r + p.r && e.contactCd <= 0 && p.iframes <= 0) {
-      p.hp -= Math.max(1, e.dmg * 0.25 - p.armor);
+      const reduction = p._dmgReduce || 0;
+      p.hp -= Math.max(1, e.dmg * 0.25 * (1 - reduction) - p.armor);
       p.iframes = 0.5;
       e.contactCd = 0.5;
       state.shake = Math.max(state.shake, 5);
@@ -1427,7 +1436,8 @@ function update(dt) {
     pr.life -= dt;
     if (pr.hostile) {
       if (dist(pr, p) < pr.r + p.r && p.iframes <= 0) {
-        p.hp -= Math.max(1, pr.damage - p.armor);
+        const reduction = p._dmgReduce || 0;
+        p.hp -= Math.max(1, pr.damage * (1 - reduction) - p.armor);
         p.iframes = 0.4;
         pr.life = 0;
         state.shake = Math.max(state.shake, 4);
@@ -1495,6 +1505,11 @@ function update(dt) {
       p.hp = 1;
       p.iframes = 2.0;
       state.shake = 20;
+    } else if (p._revive > 0) {
+      p._revive--;
+      p.hp = Math.floor(p.maxHp * 0.5);
+      p.iframes = 2.0;
+      state.shake = 20;
     } else {
       p.hp = 0;
       endRun(false);
@@ -1542,7 +1557,8 @@ function rollUpgradeChoices() {
       }
     } else if (existing.level < def.maxLevel) {
       pool.push({ type: "weaponUp", id, name: def.name, desc: def.desc + " (+)", icon: def.icon, level: existing.level + 1 });
-    } else if (!existing.ultra && WEAPON_ULTRAS[id]) {
+    }
+    if (existing && existing.level === def.maxLevel && !existing.ultra && WEAPON_ULTRAS[id]) {
       const ult = WEAPON_ULTRAS[id];
       pool.push({ type: "weaponUltra", id, name: ult.name, desc: ult.desc, icon: def.icon, level: "ULTRA" });
     }
@@ -1570,6 +1586,9 @@ function rollUpgradeChoices() {
 
 function applyChoice(choice) {
   const p = state.player;
+  // Apply against the base mult so transient per-frame bonuses don't get baked
+  // in or wiped out. We swap damageMult <-> _baseDamageMult around the apply().
+  p.damageMult = p._baseDamageMult;
   if (choice.type === "newWeapon" || choice.type === "weaponUp") {
     givePlayerWeapon(p, choice.id);
   } else if (choice.type === "passive") {
@@ -1584,6 +1603,7 @@ function applyChoice(choice) {
       PASSIVE_ULTRAS[choice.id].apply(p);
     }
   }
+  p._baseDamageMult = p.damageMult;
 }
 
 function showUpgradeScreen() {

@@ -406,7 +406,10 @@ const LEVELS = {
 
 // Helper to get shop-gated levels by run progression
 function getUnlockedLevels(runNumber) {
-  const maxTier = Math.min(6, Math.floor(runNumber / 5) + 1);
+  // Mirror TIER_UNLOCK in script.js: [_, 0, 0, 1, 2, 3, 4, 5] — runs needed per tier.
+  const TIER_UNLOCK = [0, 0, 0, 1, 2, 3, 4, 5];
+  let maxTier = 1;
+  for (let t = 1; t <= 6; t++) if (runNumber >= TIER_UNLOCK[t]) maxTier = t;
   return Object.entries(LEVELS)
     .filter(([, data]) => data.shopTier <= maxTier)
     .map(([k]) => parseInt(k));
