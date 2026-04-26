@@ -1,0 +1,8 @@
+{
+  "appId": "com.leowegner.megathonk",
+  "appName": "Mega Thonk",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "mega-thonk",
+  "version": "0.1.0",
+  "description": "Mega Thonk - 2D survivors-like, packaged for Android via Capacitor",
+  "private": true,
+  "scripts": {
+    "sync-www": "rm -rf www && mkdir -p www && cp index.html script.js levels.js styles.css www/ && cp -r sprites www/sprites",
+    "cap:sync": "npm run sync-www && npx cap sync android",
+    "cap:open": "npx cap open android",
+    "android:apk": "npm run cap:sync && cd android && ./gradlew assembleDebug",
+    "android:aab": "npm run cap:sync && cd android && ./gradlew bundleRelease",
+    "store:icons": "python3 scripts/gen_icons.py",
+    "store:feature": "python3 scripts/gen_feature_graphic.py",
+    "store:screenshots": "node scripts/gen_screenshots.mjs",
+    "store:all": "npm run store:icons && npm run store:feature && npm run store:screenshots"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.2.1",
+    "@capacitor/cli": "^6.2.1",
+    "@capacitor/core": "^6.2.1"
+  },
+  "devDependencies": {
+    "playwright": "^1.59.1"
+  }
+}

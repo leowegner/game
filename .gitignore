@@ -1,1 +1,24 @@
 .env
+
+# Node / Capacitor
+node_modules/
+www/
+
+# Android build outputs and local toolchain config
+android/.gradle/
+android/build/
+android/app/build/
+android/app/release/
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+android/local.properties
+android/.idea/
+android/captures/
+*.apk
+*.aab
+
+# Signing material — never commit
+*.jks
+*.keystore
+keystore.properties
