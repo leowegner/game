@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Mega Thonk</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Thonk Survivors</title>
 <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -43,35 +43,47 @@
         <h1 class="overlay-title">LEVEL UP!</h1>
         <p class="overlay-sub">Choose an upgrade</p>
         <div id="upgrade-cards" class="upgrade-cards"></div>
-        <div class="overlay-hint">Click a card or press 1 / 2 / 3</div>
+        <div class="upgrade-footer">
+          <div class="overlay-hint">Click a card or press 1 / 2 / 3</div>
+          <button id="upgrade-reroll-btn" class="ad-watch-btn ad-reroll-btn">
+            <span class="ad-icon">▶</span>
+            <span class="ad-label">WATCH AD</span>
+            <span class="ad-reward">REROLL</span>
+          </button>
+        </div>
       </div>
     </div>
 
     <!-- ===== HOMEPAGE ===== -->
     <div id="home-screen" class="overlay home-screen">
       <div class="home-left">
-        <h1 class="game-title">MEGA<br>THONK</h1>
-        <p class="game-tagline">Survive. Thonk. Repeat.</p>
-        <div class="home-gold-display">
-          <span class="gold-coin">◈</span>
-          <span id="home-gold">0</span>
-          <span class="gold-label">GOLD</span>
+        <div class="home-center-block">
+          <h1 class="game-title">THONK<br>SURVIVORS</h1>
+          <div class="game-title-rule">survive · thonk · repeat</div>
+          <div class="home-gold-display">
+            <span class="gold-coin">◈</span>
+            <span id="home-gold">0</span>
+            <span class="gold-label">GOLD</span>
+          </div>
+          <div class="home-buttons">
+            <button id="start-btn" class="big-btn" disabled>Loading...</button>
+            <button id="shop-btn" class="big-btn btn-shop">SHOP</button>
+          </div>
+          <div id="loading-msg" class="loading">Loading sprites...</div>
+          <div class="controls-mini">
+            <span><b>WASD</b> Move</span>
+            <span><b>Auto</b> Attack</span>
+            <span><b>P</b> Pause</span>
+          </div>
         </div>
-        <div class="home-buttons">
-          <button id="start-btn" class="big-btn" disabled>Loading...</button>
-          <button id="shop-btn" class="big-btn btn-shop">SHOP</button>
-        </div>
-        <div id="loading-msg" class="loading">Loading sprites...</div>
-        <div class="controls-mini">
-          <span><b>WASD</b> Move</span>
-          <span><b>Auto</b> Attack</span>
-          <span><b>P</b> Pause</span>
-        </div>
-        <div id="home-run-number" class="home-run-number"></div>
-        <div id="meta-bonuses" class="meta-bonuses"></div>
       </div>
       <div class="home-right">
         <canvas id="preview-canvas" width="320" height="400"></canvas>
+        <button id="home-daily-ad-btn" class="daily-badge" title="Daily bonus — watch an ad for +150 gold">
+          <span class="daily-badge-icon">🎁</span>
+          <span class="daily-badge-label">+150 ◈</span>
+          <div id="home-daily-ad-sub" class="daily-badge-cd"></div>
+        </button>
       </div>
     </div>
 
@@ -83,6 +95,14 @@
           <div class="shop-gold">
             <span class="gold-coin">◈</span>
             <span id="shop-gold-display">0</span>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">
+            <button id="shop-ad-btn" class="ad-watch-btn">
+              <span class="ad-icon">▶</span>
+              <span class="ad-label">WATCH AD</span>
+              <span class="ad-reward">+50 ◈</span>
+            </button>
+            <div id="shop-ad-cooldown" class="ad-cooldown hidden"></div>
           </div>
           <button id="shop-close-btn" class="close-btn">✕ BACK</button>
         </div>
@@ -96,6 +116,11 @@
       <div class="overlay-panel">
         <h1 id="end-title" class="overlay-title">YOU DIED</h1>
         <div id="end-stats" class="end-stats"></div>
+        <button id="end-ad-btn" class="ad-watch-btn ad-end-btn">
+          <span class="ad-icon">▶</span>
+          <span class="ad-label">WATCH AD</span>
+          <span class="ad-reward">+100 ◈ BONUS</span>
+        </button>
         <div class="end-buttons">
           <button id="restart-btn" class="big-btn">RUN AGAIN</button>
           <button id="home-btn" class="big-btn btn-shop">HOME</button>
@@ -108,7 +133,9 @@
       <div class="overlay-panel">
         <h1 class="overlay-title">PAUSED</h1>
         <p class="overlay-sub">Press P to resume</p>
-        <button id="pause-home-btn" class="big-btn btn-shop" style="margin-top:18px">HOME</button>
+        <p class="overlay-sub pause-touch-hint" style="display:none">Tap II to resume</p>
+        <button id="pause-resume-btn" class="big-btn" style="margin-top:18px">RESUME</button>
+        <button id="pause-home-btn" class="big-btn btn-shop" style="margin-top:10px">HOME</button>
       </div>
     </div>
   </div>

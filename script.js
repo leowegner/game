@@ -1,4 +1,4 @@
-// Mega Thonk - a 2D pixel-art survivors-like
+// Thonk Survivors - a 2D pixel-art survivors-like
 
 const SPRITE_LIST = [
   "player",
@@ -15,75 +15,95 @@ const SPRITE_LIST = [
 
 const sprites = {};
 
+// Sprites are either single images or horizontal spritesheets (width = N * height).
+// For spritesheets, loadSprite resolves to an array of frame canvases.
+// For single images, it resolves to a single canvas (backwards compatible).
+
+function keyoutMagenta(ctx, w, h) {
+  const data = ctx.getImageData(0, 0, w, h);
+  const d = data.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const r = d[i], g = d[i + 1], b = d[i + 2];
+    const magentaScore = (r + b) / 2 - g;
+    if (magentaScore > 60 && r > 130 && b > 100 && g < 160) {
+      d[i + 3] = 0;
+    } else if (magentaScore > 30 && r > 150 && b > 120 && g < 180) {
+      d[i + 3] = Math.max(0, d[i + 3] - 180);
+    }
+  }
+  ctx.putImageData(data, 0, 0);
+}
+
 function loadSprite(name) {
   return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("timeout: " + name)), 10000);
     const img = new Image();
     img.onload = () => {
-      const c = document.createElement("canvas");
+      clearTimeout(timer);
       const isTile = name.startsWith("tile_");
+      const frameH = img.height;
+      const frameW = frameH; // square frames
+      const numFrames = Math.round(img.width / frameH);
+      const isSheet = !isTile && numFrames > 1 && img.width === frameH * numFrames;
+
       if (isTile) {
-        // Sample a center crop and force-mirror the edges so it tiles seamlessly.
+        const c = document.createElement("canvas");
         const SRC = Math.min(img.width, img.height);
         const CROP = Math.floor(SRC * 0.55);
         const offX = Math.floor((img.width - CROP) / 2);
         const offY = Math.floor((img.height - CROP) / 2);
-        c.width = 256;
-        c.height = 256;
+        c.width = 256; c.height = 256;
         const tctx = c.getContext("2d");
         tctx.imageSmoothingEnabled = true;
-        // Draw 4 mirrored quadrants so the edges line up perfectly.
         tctx.save();
         tctx.drawImage(img, offX, offY, CROP, CROP, 0, 0, 128, 128);
-        tctx.translate(256, 0);
-        tctx.scale(-1, 1);
+        tctx.translate(256, 0); tctx.scale(-1, 1);
         tctx.drawImage(img, offX, offY, CROP, CROP, 0, 0, 128, 128);
         tctx.restore();
         tctx.save();
-        tctx.translate(0, 256);
-        tctx.scale(1, -1);
+        tctx.translate(0, 256); tctx.scale(1, -1);
         tctx.drawImage(img, offX, offY, CROP, CROP, 0, 0, 128, 128);
-        tctx.translate(256, 0);
-        tctx.scale(-1, 1);
+        tctx.translate(256, 0); tctx.scale(-1, 1);
         tctx.drawImage(img, offX, offY, CROP, CROP, 0, 0, 128, 128);
         tctx.restore();
+        resolve(c);
+      } else if (isSheet) {
+        // Slice into individual frame canvases
+        const frames = [];
+        for (let f = 0; f < numFrames; f++) {
+          const fc = document.createElement("canvas");
+          fc.width = frameW; fc.height = frameH;
+          const fctx = fc.getContext("2d");
+          fctx.drawImage(img, f * frameW, 0, frameW, frameH, 0, 0, frameW, frameH);
+          try { keyoutMagenta(fctx, frameW, frameH); } catch(e) {}
+          frames.push(fc);
+        }
+        // Attach metadata so drawSprite knows it's animated
+        frames.isSheet = true;
+        frames.numFrames = numFrames;
+        resolve(frames);
       } else {
-        c.width = img.width;
-        c.height = img.height;
+        const c = document.createElement("canvas");
+        c.width = img.width; c.height = img.height;
         const ctx = c.getContext("2d");
         ctx.drawImage(img, 0, 0);
-        const data = ctx.getImageData(0, 0, c.width, c.height);
-        const d = data.data;
-        // Key out magenta. The AI's "magenta" is fuzzy: bright pink/purple
-        // shades around #ff00ff. Detect any pixel that is much more red+blue
-        // than green AND highly saturated, then also feather edges.
-        for (let i = 0; i < d.length; i += 4) {
-          const r = d[i], g = d[i + 1], b = d[i + 2];
-          const magentaScore = (r + b) / 2 - g;
-          if (magentaScore > 60 && r > 130 && b > 100 && g < 160) {
-            d[i + 3] = 0;
-          } else if (magentaScore > 30 && r > 150 && b > 120 && g < 180) {
-            // Edge feather: partial transparency for borderline pixels.
-            d[i + 3] = Math.max(0, d[i + 3] - 180);
-          }
-        }
-        ctx.putImageData(data, 0, 0);
+        try { keyoutMagenta(ctx, c.width, c.height); } catch(e) {}
+        resolve(c);
       }
-      c.dataUrl = c.toDataURL();
-      resolve(c);
     };
-    img.onerror = () => reject(new Error("failed to load " + name));
+    img.onerror = () => { clearTimeout(timer); reject(new Error("failed to load " + name)); };
     img.src = `sprites/${name}.png`;
   });
 }
 
 async function loadAllSprites(onProgress) {
   let done = 0;
-  for (const name of SPRITE_LIST) {
+  const total = SPRITE_LIST.length;
+  await Promise.all(SPRITE_LIST.map(async (name) => {
     try {
       sprites[name] = await loadSprite(name);
     } catch (e) {
       console.warn("missing sprite", name);
-      // Fallback: a solid colored square.
       const c = document.createElement("canvas");
       c.width = c.height = 64;
       const ctx = c.getContext("2d");
@@ -92,8 +112,8 @@ async function loadAllSprites(onProgress) {
       sprites[name] = c;
     }
     done++;
-    if (onProgress) onProgress(done, SPRITE_LIST.length);
-  }
+    if (onProgress) onProgress(done, total);
+  }));
 }
 
 // ---------- Meta-progression (persists across runs via localStorage) ----------
@@ -447,6 +467,50 @@ function applyShopBonuses(p) {
   // without overwriting it.
   p._baseDamageMult = p.damageMult;
 }
+
+// ---------- Audio (Web Audio API, procedural — no files) ----------
+
+const _ac = new (window.AudioContext || window.webkitAudioContext)();
+
+function _resumeAudio() { if (_ac.state === "suspended") _ac.resume(); }
+document.addEventListener("touchstart", _resumeAudio, { once: true });
+document.addEventListener("click", _resumeAudio, { once: true });
+
+function _playSound(opts) {
+  if (_ac.state === "suspended") return;
+  const { type = "square", freq = 440, freq2 = freq, duration = 0.1,
+          gainPeak = 0.3, gainEnd = 0, attack = 0.005, startTime } = opts;
+  const t0 = startTime || _ac.currentTime;
+  const osc = _ac.createOscillator();
+  const gain = _ac.createGain();
+  osc.connect(gain);
+  gain.connect(_ac.destination);
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t0);
+  if (freq2 !== freq) osc.frequency.exponentialRampToValueAtTime(freq2, t0 + duration);
+  gain.gain.setValueAtTime(0, t0);
+  gain.gain.linearRampToValueAtTime(gainPeak, t0 + attack);
+  gain.gain.exponentialRampToValueAtTime(Math.max(0.001, gainEnd), t0 + duration);
+  osc.start(t0);
+  osc.stop(t0 + duration + 0.01);
+}
+
+const sfx = {
+  enemyHit()  { _playSound({ type: "square", freq: 280, freq2: 180, duration: 0.07, gainPeak: 0.18 }); },
+  enemyDie()  {
+    _playSound({ type: "square", freq: 350, freq2: 80, duration: 0.15, gainPeak: 0.22 });
+    _playSound({ type: "noise" === "noise" ? "sawtooth" : "sawtooth", freq: 180, freq2: 60, duration: 0.12, gainPeak: 0.12, attack: 0.01, startTime: _ac.currentTime + 0.02 });
+  },
+  playerHurt() { _playSound({ type: "sawtooth", freq: 160, freq2: 80, duration: 0.2, gainPeak: 0.25 }); },
+  gemPickup()  { _playSound({ type: "sine", freq: 880, freq2: 1200, duration: 0.08, gainPeak: 0.15 }); },
+  heartPickup(){ _playSound({ type: "sine", freq: 660, freq2: 880, duration: 0.12, gainPeak: 0.2 }); },
+  levelUp()   {
+    [0, 0.06, 0.12].forEach((delay, i) => {
+      _playSound({ type: "square", freq: [523, 659, 784][i], duration: 0.15, gainPeak: 0.2, attack: 0.01, startTime: _ac.currentTime + delay });
+    });
+  },
+  bossHit()   { _playSound({ type: "sawtooth", freq: 120, freq2: 60, duration: 0.15, gainPeak: 0.3 }); },
+};
 
 // ---------- Core game state ----------
 
@@ -990,7 +1054,7 @@ function currentLevelNumber() {
 }
 
 function currentLevelData() {
-  return LEVELS[currentLevelNumber()] || LEVELS[1];
+  return LEVELS[currentLevelNumber()] || LEVELS[1] || null;
 }
 
 // Wave schedule: each entry = { at: minutes, types: [...], rate: spawns/sec, cap: soft }.
@@ -1119,6 +1183,8 @@ function dealDamage(e, amount, push, quiet) {
   const final = Math.max(1, amount - (e.armor || 0));
   e.hp -= final;
   e.hitFlash = 0.12;
+  e.hitSquash = 0.12;
+  if (e.isBoss) sfx.bossHit(); else sfx.enemyHit();
   if (push && push.knock) {
     e.vx += push.kx * push.knock;
     e.vy += push.ky * push.knock;
@@ -1133,6 +1199,7 @@ function dealDamage(e, amount, push, quiet) {
 
 function killEnemy(e) {
   e.dead = true;
+  sfx.enemyDie();
   state.kills++;
   state.gold += (1 + (state.player._goldBonus || 0)) * (state.player._goldMult || 1);
   // Berserker: gain a stack on kill, reset 4s timer, cap at 10.
@@ -1305,6 +1372,7 @@ function update(dt) {
   for (const e of state.enemies) {
     if (e.dead) continue;
     if (e.hitFlash > 0) e.hitFlash -= dt;
+    if (e.hitSquash > 0) e.hitSquash -= dt;
     if (e.contactCd > 0) e.contactCd -= dt;
 
     // Apply knockback velocity with friction.
@@ -1364,6 +1432,7 @@ function update(dt) {
             const reduction = p._dmgReduce || 0;
             p.hp -= Math.max(1, e.dmg * (1 - reduction) - p.armor);
             p.iframes = 0.4;
+            sfx.playerHurt();
             state.shake = 10;
           }
           e.dead = true;
@@ -1398,6 +1467,7 @@ function update(dt) {
       p.hp -= Math.max(1, e.dmg * 0.25 * (1 - reduction) - p.armor);
       p.iframes = 0.5;
       e.contactCd = 0.5;
+      sfx.playerHurt();
       state.shake = Math.max(state.shake, 5);
     }
   }
@@ -1439,6 +1509,7 @@ function update(dt) {
         const reduction = p._dmgReduce || 0;
         p.hp -= Math.max(1, pr.damage * (1 - reduction) - p.armor);
         p.iframes = 0.4;
+        sfx.playerHurt();
         pr.life = 0;
         state.shake = Math.max(state.shake, 4);
       }
@@ -1468,8 +1539,10 @@ function update(dt) {
       pk.collected = true;
       if (pk.kind === "gem") {
         gainXP(pk.xp);
+        sfx.gemPickup();
       } else if (pk.kind === "heart") {
         p.hp = Math.min(p.maxHp, p.hp + pk.heal);
+        sfx.heartPickup();
       }
     }
   }
@@ -1537,6 +1610,7 @@ function gainXP(amount) {
     p.level++;
     p.xpNext = Math.floor(5 + p.level * 3 + p.level * p.level * 0.4);
     state.upgradePending++;
+    sfx.levelUp();
   }
   if (state.upgradePending > 0) showUpgradeScreen();
 }
@@ -1623,7 +1697,7 @@ function showUpgradeScreen() {
     const card = document.createElement("div");
     card.className = "card" + (isUltra ? " card-ultra" : "");
     const iconCanvas = sprites[c.icon];
-    const iconUrl = (iconCanvas && iconCanvas.dataUrl) ? iconCanvas.dataUrl : `sprites/${c.icon}.png`;
+    const iconUrl = iconCanvas ? (iconCanvas.dataUrl || (iconCanvas.dataUrl = (Array.isArray(iconCanvas) ? iconCanvas[0] : iconCanvas).toDataURL())) : `sprites/${c.icon}.png`;
     card.innerHTML = `
       <div class="card-icon" style="background-image:url('${iconUrl}')"></div>
       <div class="card-title">${c.name}</div>
@@ -1688,21 +1762,41 @@ function updateHUD() {
 
 // ---------- Rendering ----------
 
-function drawSprite(canvasImg, worldX, worldY, size, opts) {
-  if (!canvasImg) return;
-  const sx = worldX - state.camera.x - size / 2;
-  const sy = worldY - state.camera.y - size / 2;
-  if (sx + size < 0 || sy + size < 0 || sx > W || sy > H) return;
+function drawSprite(spriteData, worldX, worldY, size, opts) {
+  if (!spriteData) return;
+  const sx = worldX - state.camera.x;
+  const sy = worldY - state.camera.y;
+  if (sx + size < -size || sy + size < -size || sx - size > W || sy - size > H) return;
+
+  // Resolve animated sheet: pick frame based on game time
+  let canvasImg = spriteData;
+  if (spriteData.isSheet) {
+    const fps = 8;
+    const moving = opts && opts.moving;
+    const baseFrame = moving ? 4 : 0;
+    const frame = baseFrame + (Math.floor((state.time || 0) * fps) % 4);
+    canvasImg = spriteData[frame] || spriteData[0];
+  }
+
+  // Hit squash: compress vertically, stretch horizontally on impact
+  const squash = opts && opts.squash > 0 ? opts.squash : 0;
+  const scaleX = squash > 0 ? 1 + squash * 0.4 : 1;
+  const scaleY = squash > 0 ? 1 - squash * 0.35 : 1;
+
+  ctx.save();
+  ctx.translate(sx, sy);
+  if (scaleX !== 1 || scaleY !== 1) ctx.scale(scaleX, scaleY);
+  const dx = -size / 2, dy = -size / 2;
+
   if (opts && opts.flash) {
-    ctx.save();
-    ctx.drawImage(canvasImg, sx, sy, size, size);
+    ctx.drawImage(canvasImg, dx, dy, size, size);
     ctx.globalCompositeOperation = "source-atop";
     ctx.fillStyle = "rgba(255,255,255,0.7)";
-    ctx.fillRect(sx, sy, size, size);
-    ctx.restore();
+    ctx.fillRect(dx, dy, size, size);
   } else {
-    ctx.drawImage(canvasImg, sx, sy, size, size);
+    ctx.drawImage(canvasImg, dx, dy, size, size);
   }
+  ctx.restore();
 }
 
 function drawBackground() {
@@ -1751,7 +1845,7 @@ function draw() {
     const size = e.r * 2.5;
     let bobY = 0;
     if (e.kind === "flyer") bobY = Math.sin(state.time * 6 + e.id) * 4;
-    drawSprite(sprites[e.sprite], e.x, e.y + bobY, size, { flash: e.hitFlash > 0 });
+    drawSprite(sprites[e.sprite], e.x, e.y + bobY, size, { flash: e.hitFlash > 0, moving: e.isMoving || e.speed > 0, squash: e.hitSquash || 0 });
     // Health bar for bosses and elites.
     if (e.isBoss || e.maxHp > 200) {
       const bw = Math.max(60, size * 1.2);
@@ -1764,67 +1858,27 @@ function draw() {
     }
   }
 
-  // ---------- Procedural player animation ----------
+  // ---------- Player sprite draw ----------
   const pSize = 64;
   const psx = p.x - state.camera.x;
   const psy = p.y - state.camera.y;
   const spr = sprites.player;
   if (spr) {
-    // --- Compute animation values ---
-    // Vertical body bob while walking (sine over walk cycle).
-    const bobY = p.isMoving ? Math.sin(p.walkCycle * Math.PI * 2) * 3.5 : Math.sin(p.breathe) * 1.2;
-    // Leg scissor offset: bottom half shifts left/right alternately.
-    const legOffset = p.isMoving ? Math.sin(p.walkCycle * Math.PI * 2) * 5 : 0;
-    // Squash-stretch: wider + shorter on landing, taller on airtime.
-    const squash = p.landSquash;
-    const scaleX = 1 + squash * 0.25;
-    const scaleY = 1 - squash * 0.18;
-    // Attack lunge: lean forward in facing direction during swing.
+    const alpha = (p.iframes > 0 && Math.floor(p.iframes * 18) % 2 === 0) ? 0.35 : 1;
     const lungeX = p.attackAnim > 0 ? p.dir.x * (p.attackAnim / 0.25) * 6 : 0;
     const lungeY = p.attackAnim > 0 ? p.dir.y * (p.attackAnim / 0.25) * 6 : 0;
-    // Iframe flash: blink by alternating alpha.
-    const alpha = (p.iframes > 0 && Math.floor(p.iframes * 18) % 2 === 0) ? 0.35 : 1;
-
-    const half = pSize / 2;
-    // Top half: rows 0..49% of sprite height (head + torso).
-    const topH = Math.floor(pSize * 0.52);
-    // Bottom half: rows 50%..100% (legs + feet).
-    const botH = pSize - topH;
-    const srcTopH = Math.floor(spr.height * 0.52);
-    const srcBotH = spr.height - srcTopH;
-
+    let frame = spr;
+    if (spr.isSheet) {
+      const baseFrame = p.isMoving ? 4 : 0;
+      frame = spr[baseFrame + (Math.floor(state.time * 8) % 4)];
+    }
     ctx.save();
     ctx.globalAlpha = alpha;
-
-    // --- Bottom half (legs) ---
-    // Draw legs offset left/right and slightly squashed.
-    ctx.save();
-    ctx.translate(psx + lungeX + legOffset, psy + bobY + lungeY);
+    ctx.translate(psx + lungeX, psy + lungeY);
     if (p.dir.x < 0) ctx.scale(-1, 1);
-    ctx.rotate(p.tiltAngle);
-    ctx.scale(scaleX, scaleY);
-    ctx.drawImage(
-      spr,
-      0, srcTopH, spr.width, srcBotH,       // source: bottom half
-      -half, topH - half, pSize, botH        // dest: bottom portion
-    );
+    ctx.rotate(p.tiltAngle * 0.5);
+    ctx.drawImage(frame, -pSize / 2, -pSize / 2, pSize, pSize);
     ctx.restore();
-
-    // --- Top half (head + torso) ---
-    // Floats up/down with bob, tilts with movement.
-    ctx.save();
-    ctx.translate(psx + lungeX, psy + bobY + lungeY - squash * 4);
-    if (p.dir.x < 0) ctx.scale(-1, 1);
-    ctx.rotate(p.tiltAngle * 0.6);
-    ctx.scale(scaleX * 0.97, scaleY * 1.04);
-    ctx.drawImage(
-      spr,
-      0, 0, spr.width, srcTopH,             // source: top half
-      -half, -half, pSize, topH             // dest: top portion
-    );
-    ctx.restore();
-
-    ctx.restore(); // globalAlpha
   }
 
   // Tiny facing pip — direction indicator always visible.
@@ -1957,10 +2011,17 @@ function endRun(won) {
     <div>Kills: <b>${state.kills}</b></div>
     <div>Level reached: <b>${state.player.level}</b></div>
     <div>Gold earned: <b>+${state.gold}</b> ◈</div>
-    <div>Total gold: <b>${meta.gold}</b> ◈</div>
+    <div>Total gold: <b id="end-total-gold">${meta.gold}</b> ◈</div>
   `;
   document.getElementById("hud").classList.add("hidden");
   setJoystickVisible(false);
+  // Reset end-screen ad button for this run.
+  const endAdBtn = document.getElementById("end-ad-btn");
+  if (endAdBtn) {
+    endAdBtn.disabled = false;
+    const lbl = endAdBtn.querySelector(".ad-label");
+    if (lbl) lbl.textContent = "WATCH AD";
+  }
   showScreen("end-screen");
 }
 
@@ -1993,24 +2054,7 @@ function showHome() {
 
 function renderHomepage() {
   document.getElementById("home-gold").textContent = meta.gold;
-  const runEl = document.getElementById("home-run-number");
-  if (runEl) {
-    const n = meta.runNumber || 0;
-    const lvlNum = Math.min(50, n + 1);
-    const lvlData = LEVELS[lvlNum];
-    const preview = lvlData ? lvlData.enemies.map(e => e.name).join(", ") : "";
-    runEl.textContent = `Level ${lvlNum} / 50 — ${preview}`;
-  }
-  // Show active shop bonuses.
-  const bonusEl = document.getElementById("meta-bonuses");
-  const lines = [];
-  for (const upg of SHOP_UPGRADES) {
-    const lv = meta.shop[upg.id] || 0;
-    if (lv > 0) lines.push(`▸ ${upg.name} Lv${lv}`);
-  }
-  bonusEl.innerHTML = lines.length
-    ? "<b>Active bonuses:</b><br>" + lines.join("<br>")
-    : "";
+  updateHomeDailyBtn();
   // Draw animated preview on the small canvas.
   startPreviewAnim();
 }
@@ -2046,21 +2090,23 @@ function startPreviewAnim() {
       const ey = cy + Math.sin(ang) * r * 0.5;
       const spr = sprites[enemyTypes[i]];
       if (spr) {
+        const frame = spr.isSheet ? (spr[Math.floor(previewT * 8) % 4] || spr[0]) : spr;
         const bob = Math.sin(previewT * 6 + i) * 3;
         const sz = 44;
         pctx.save();
         if (Math.cos(ang) < 0) pctx.scale(-1, 1);
-        pctx.drawImage(spr, (Math.cos(ang) < 0 ? -ex : ex) - sz / 2, ey + bob - sz / 2, sz, sz);
+        pctx.drawImage(frame, (Math.cos(ang) < 0 ? -ex : ex) - sz / 2, ey + bob - sz / 2, sz, sz);
         pctx.restore();
       }
     }
     // Player in center with bob and breathing.
     const spr = sprites.player;
     if (spr) {
+      const frame = spr.isSheet ? (spr[Math.floor(previewT * 8) % 4] || spr[0]) : spr;
       const breathe = Math.sin(previewT * 1.4) * 1.5;
       const bob = Math.sin(previewT * 3) * 2;
       const sz = 80;
-      pctx.drawImage(spr, cx - sz / 2, cy - sz / 2 + breathe + bob - 30, sz, sz);
+      pctx.drawImage(frame, cx - sz / 2, cy - sz / 2 + breathe + bob - 30, sz, sz);
     }
     // Title text overlay.
     pctx.save();
@@ -2112,7 +2158,7 @@ function renderShop() {
     const cost = maxed ? 0 : shopUpgradeCost(upg);
     const canAfford = meta.gold >= cost;
     const iconCanvas = sprites[upg.icon];
-    const iconUrl = iconCanvas?.dataUrl ?? `sprites/${upg.icon}.png`;
+    const iconUrl = iconCanvas ? (iconCanvas.dataUrl || (iconCanvas.dataUrl = (Array.isArray(iconCanvas) ? iconCanvas[0] : iconCanvas).toDataURL())) : `sprites/${upg.icon}.png`;
 
     const el = document.createElement("div");
     if (!tierUnlocked) {
@@ -2156,9 +2202,167 @@ function buyShopItem(upg) {
   renderHomepage();
 }
 
+// ---------- Ads ----------
+
+// Generic rewarded-ad helper. Calls onRewarded() if the user earns the reward.
+// btn: the button element to show a loading state on (optional).
+async function watchAd(btn, onRewarded) {
+  if (btn) {
+    btn.disabled = true;
+    const label = btn.querySelector(".ad-label");
+    if (label) label.textContent = "Loading...";
+  }
+
+  let rewarded = false;
+  try {
+    const { AdMob, RewardAdPluginEvents } = await import("@capacitor-community/admob");
+    await AdMob.prepareRewardVideoAd({
+      adId: "ca-app-pub-3940256099942544/5224354917", // replace with real ID before launch
+      isTesting: true,
+    });
+    rewarded = await new Promise((resolve) => {
+      AdMob.addListener(RewardAdPluginEvents.Rewarded, () => resolve(true));
+      AdMob.addListener(RewardAdPluginEvents.FailedToLoad, () => resolve(false));
+      AdMob.addListener(RewardAdPluginEvents.Dismissed, () => resolve(false));
+      AdMob.showRewardVideoAd().catch(() => resolve(false));
+    });
+  } catch {
+    // Dev / browser fallback — simulate a short delay then reward.
+    await new Promise(r => setTimeout(r, 800));
+    rewarded = true;
+  }
+
+  if (btn) {
+    const label = btn.querySelector(".ad-label");
+    if (label) label.textContent = "WATCH AD";
+  }
+
+  if (rewarded) {
+    onRewarded();
+  } else if (btn) {
+    // Only re-enable if not rewarded (caller's onRewarded handles cooldown/disable).
+    btn.disabled = false;
+  }
+}
+
+// ---- Shop ad (5-minute cooldown) ----
+const SHOP_AD_COOLDOWN_MS = 5 * 60 * 1000;
+let shopAdCooldownUntil = 0;
+let shopAdCooldownTimer = null;
+
+function startShopAdCooldown() {
+  const btn = document.getElementById("shop-ad-btn");
+  const cooldownEl = document.getElementById("shop-ad-cooldown");
+  shopAdCooldownUntil = Date.now() + SHOP_AD_COOLDOWN_MS;
+  btn.disabled = true;
+  cooldownEl.classList.remove("hidden");
+  clearInterval(shopAdCooldownTimer);
+  shopAdCooldownTimer = setInterval(() => {
+    const remaining = shopAdCooldownUntil - Date.now();
+    if (remaining <= 0) {
+      clearInterval(shopAdCooldownTimer);
+      btn.disabled = false;
+      cooldownEl.classList.add("hidden");
+      cooldownEl.textContent = "";
+    } else {
+      const m = Math.floor(remaining / 60000);
+      const s = Math.floor((remaining % 60000) / 1000);
+      cooldownEl.textContent = `Next in ${m}:${s.toString().padStart(2, "0")}`;
+    }
+  }, 1000);
+}
+
+function watchShopAd() {
+  const btn = document.getElementById("shop-ad-btn");
+  if (btn.disabled) return;
+  watchAd(btn, () => {
+    meta.gold += 50;
+    saveMeta();
+    renderShop();
+    renderHomepage();
+    flashGold("shop-gold-display");
+    startShopAdCooldown();
+  });
+}
+
+// ---- Home daily bonus ad (once per 24 h) ----
+const DAILY_BONUS_GOLD = 150;
+const DAILY_BONUS_MS = 24 * 60 * 60 * 1000;
+
+function updateHomeDailyBtn() {
+  const btn = document.getElementById("home-daily-ad-btn");
+  const sub = document.getElementById("home-daily-ad-sub");
+  if (!btn) return;
+  const lastClaim = meta.dailyAdClaimed || 0;
+  const ready = Date.now() - lastClaim >= DAILY_BONUS_MS;
+  btn.disabled = !ready;
+  if (ready) {
+    sub.textContent = "";
+  } else {
+    const remaining = DAILY_BONUS_MS - (Date.now() - lastClaim);
+    const h = Math.floor(remaining / 3600000);
+    const m = Math.floor((remaining % 3600000) / 60000);
+    sub.textContent = `Next in ${h}h ${m}m`;
+  }
+}
+
+function watchDailyAd() {
+  const btn = document.getElementById("home-daily-ad-btn");
+  watchAd(btn, () => {
+    meta.gold += DAILY_BONUS_GOLD;
+    meta.dailyAdClaimed = Date.now();
+    saveMeta();
+    renderHomepage();
+    updateHomeDailyBtn();
+    flashGold("home-gold");
+  });
+}
+
+// ---- End-of-run bonus gold ad (unlimited) ----
+function watchEndAd() {
+  const btn = document.getElementById("end-ad-btn");
+  watchAd(btn, () => {
+    const bonus = 100;
+    meta.gold += bonus;
+    saveMeta();
+    document.getElementById("home-gold").textContent = meta.gold;
+    // Update the total gold line in end stats.
+    const totalEl = document.getElementById("end-total-gold");
+    if (totalEl) totalEl.textContent = meta.gold;
+    btn.textContent = `+${bonus} ◈ claimed!`;
+    btn.disabled = true;
+  });
+}
+
+// ---- Upgrade reroll ad (unlimited) ----
+function watchRerollAd() {
+  const btn = document.getElementById("upgrade-reroll-btn");
+  watchAd(btn, () => {
+    // Reroll by re-running showUpgradeScreen (it regenerates choices).
+    showUpgradeScreen();
+  });
+}
+
+// Small gold flash animation for a given element id.
+function flashGold(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.style.transition = "color 0.15s";
+  el.style.color = "#7aff8a";
+  setTimeout(() => { el.style.color = ""; }, 600);
+}
+
 // ---------- Boot ----------
 
 async function boot() {
+  const isTouch = ("ontouchstart" in window) || navigator.maxTouchPoints > 0;
+  if (isTouch) {
+    const touchHint = document.querySelector(".pause-touch-hint");
+    if (touchHint) touchHint.style.display = "";
+    const kbHint = document.querySelector("#pause-screen .overlay-sub:not(.pause-touch-hint)");
+    if (kbHint) kbHint.style.display = "none";
+  }
+
   const loadingMsg = document.getElementById("loading-msg");
   const startBtn = document.getElementById("start-btn");
   startBtn.disabled = true;
@@ -2181,11 +2385,19 @@ async function boot() {
     showScreen("home-screen");
     renderHomepage();
   };
+  document.getElementById("shop-ad-btn").onclick = watchShopAd;
+  document.getElementById("home-daily-ad-btn").onclick = watchDailyAd;
+  document.getElementById("end-ad-btn").onclick = watchEndAd;
+  document.getElementById("upgrade-reroll-btn").onclick = watchRerollAd;
   document.getElementById("restart-btn").onclick = () => { stopPreviewAnim(); startRun(); };
   document.getElementById("home-btn").onclick = showHome;
   document.getElementById("pause-home-btn").onclick = () => {
     state.paused = false;
     showHome();
+  };
+  document.getElementById("pause-resume-btn").onclick = () => {
+    state.paused = false;
+    showScreen(null);
   };
 
   // Show homepage.
