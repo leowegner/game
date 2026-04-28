@@ -1688,9 +1688,9 @@ function showUpgradeBadge() {
   }
 }
 
-function hideUpgradeBadge() {
+function hideUpgradeBadge(force) {
   const badge = document.getElementById("upgrade-badge");
-  if (badge && state.upgradePending === 0) badge.classList.add("hidden");
+  if (badge && (force || state.upgradePending === 0)) badge.classList.add("hidden");
 }
 
 function openUpgradePanel() {
@@ -2008,6 +2008,7 @@ function startRun() {
   state.effects = [];
   state.damageNumbers = [];
   state.upgradePending = 0;
+  hideUpgradeBadge(true);
   state.bossSpawned = false;
   state.bossDead = false;
   spawnAccum = 0;
@@ -2074,6 +2075,8 @@ function showScreen(id) {
 
 function showHome() {
   state.running = false;
+  state.upgradePending = 0;
+  hideUpgradeBadge(true);
   document.getElementById("hud").classList.add("hidden");
   setJoystickVisible(false);
   renderHomepage();
