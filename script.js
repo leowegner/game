@@ -1079,17 +1079,15 @@ function currentWave() {
 }
 
 function timeDifficultyMultiplier() {
-  // Enemy HP and damage scale over time within a run.
+  // Enemy HP and damage scale over time within a run — steeper curve.
   const m = state.time / 60;
-  return 1 + m * 0.35 + (m * m) * 0.03;
+  return 1 + m * 0.6 + (m * m) * 0.08;
 }
 
-// Extra multiplier based on how many runs the player has completed.
-// Run 0 = 1.0x, run 1 = 1.5x HP / 1.35x dmg, run 2 = 2.0x HP / 1.7x dmg, etc.
-// Use current level (1..50) instead of run number so each level feels distinct.
+// Extra multiplier based on progression level.
 function levelIdx() { return Math.max(0, currentLevelNumber() - 1); }
-function runHpMultiplier()  { return 1 + levelIdx() * 0.35; }
-function runDmgMultiplier() { return 1 + levelIdx() * 0.22; }
+function runHpMultiplier()  { return 1 + levelIdx() * 0.55; }
+function runDmgMultiplier() { return 1 + levelIdx() * 0.35; }
 function runSpawnMultiplier() { return 1 + levelIdx() * 0.12; }
 
 let nextEnemyId = 1;
@@ -1281,7 +1279,7 @@ let lastTime = performance.now();
 let spawnAccum = 0;
 
 function update(dt) {
-  if (!state.running || state.paused || state.upgradePending > 0 || state.ended) return;
+  if (!state.running || state.paused || state.ended) return;
   state.time += dt;
 
   // Biome changes every ~4 minutes.
@@ -1608,11 +1606,13 @@ function gainXP(amount) {
   while (p.xp >= p.xpNext) {
     p.xp -= p.xpNext;
     p.level++;
-    p.xpNext = Math.floor(5 + p.level * 3 + p.level * p.level * 0.4);
+    // Slower curve: ~16 levels over 15 min at normal kill rate.
+    p.xpNext = Math.floor(20 + p.level * p.level * 2.5);
     state.upgradePending++;
     sfx.levelUp();
   }
-  if (state.upgradePending > 0) showUpgradeScreen();
+  // Just show the badge; don't pause or open cards automatically.
+  if (state.upgradePending > 0) showUpgradeBadge();
 }
 
 // ---------- Upgrade draft ----------
@@ -1680,7 +1680,22 @@ function applyChoice(choice) {
   p._baseDamageMult = p.damageMult;
 }
 
-function showUpgradeScreen() {
+function showUpgradeBadge() {
+  const badge = document.getElementById("upgrade-badge");
+  if (badge) {
+    badge.classList.remove("hidden");
+    badge.textContent = state.upgradePending > 1 ? `+${state.upgradePending}` : "▲";
+  }
+}
+
+function hideUpgradeBadge() {
+  const badge = document.getElementById("upgrade-badge");
+  if (badge && state.upgradePending === 0) badge.classList.add("hidden");
+}
+
+function openUpgradePanel() {
+  if (state.upgradePending <= 0 || state.ended) return;
+  state.paused = true;
   const screen = document.getElementById("upgrade-screen");
   const cards = document.getElementById("upgrade-cards");
   cards.innerHTML = "";
@@ -1689,7 +1704,9 @@ function showUpgradeScreen() {
     // No upgrades left: give gold instead.
     state.gold += 10;
     state.upgradePending--;
-    if (state.upgradePending > 0) showUpgradeScreen();
+    state.paused = state.upgradePending > 0;
+    hideUpgradeBadge();
+    if (state.upgradePending > 0) openUpgradePanel();
     return;
   }
   choices.forEach((c, i) => {
@@ -1716,11 +1733,18 @@ function pickChoice(c) {
   applyChoice(c);
   state.upgradePending--;
   document.getElementById("upgrade-screen").classList.add("hidden");
-  if (state.upgradePending > 0) showUpgradeScreen();
+  if (state.upgradePending > 0) {
+    // More upgrades queued — open next immediately.
+    openUpgradePanel();
+  } else {
+    // All done — unpause and hide badge.
+    state.paused = false;
+    hideUpgradeBadge();
+  }
 }
 
 window.addEventListener("keydown", (e) => {
-  if (state.upgradePending > 0 && state.activeChoices) {
+  if (!document.getElementById("upgrade-screen").classList.contains("hidden") && state.activeChoices) {
     const n = parseInt(e.key, 10);
     if (n >= 1 && n <= state.activeChoices.length) {
       pickChoice(state.activeChoices[n - 1]);
@@ -1730,7 +1754,13 @@ window.addEventListener("keydown", (e) => {
 });
 
 function togglePause() {
-  if (!state.running || state.ended || state.upgradePending > 0) return;
+  if (!state.running || state.ended) return;
+  // If upgrade panel is open, close it and unpause.
+  if (!document.getElementById("upgrade-screen").classList.contains("hidden")) {
+    document.getElementById("upgrade-screen").classList.add("hidden");
+    state.paused = false;
+    return;
+  }
   state.paused = !state.paused;
   if (state.paused) showScreen("pause-screen"); else showScreen(null);
 }
@@ -2338,8 +2368,8 @@ function watchEndAd() {
 function watchRerollAd() {
   const btn = document.getElementById("upgrade-reroll-btn");
   watchAd(btn, () => {
-    // Reroll by re-running showUpgradeScreen (it regenerates choices).
-    showUpgradeScreen();
+    // Reroll by re-running openUpgradePanel (it regenerates choices).
+    openUpgradePanel();
   });
 }
 
@@ -2389,6 +2419,7 @@ async function boot() {
   document.getElementById("home-daily-ad-btn").onclick = watchDailyAd;
   document.getElementById("end-ad-btn").onclick = watchEndAd;
   document.getElementById("upgrade-reroll-btn").onclick = watchRerollAd;
+  document.getElementById("upgrade-badge").onclick = openUpgradePanel;
   document.getElementById("restart-btn").onclick = () => { stopPreviewAnim(); startRun(); };
   document.getElementById("home-btn").onclick = showHome;
   document.getElementById("pause-home-btn").onclick = () => {

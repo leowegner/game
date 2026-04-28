@@ -1,8 +1,10 @@
 {
   "appId": "com.leowegner.megathonk",
-  "appName": "Mega Thonk",
+  "appName": "Thonk Survivors",
   "webDir": "www",
   "android": {
-    "allowMixedContent": false
+    "allowMixedContent": false,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false
   }
 }
